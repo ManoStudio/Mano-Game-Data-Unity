@@ -2,6 +2,7 @@ using UnityEditor;
 using System.IO;
 using UnityEngine;
 using System.Collections.Generic;
+using System.Linq;
 
 public static class ManoDataAsmdefUtility
 {
@@ -47,13 +48,19 @@ public static class ManoDataAsmdefUtility
 
         if (data.references == null) data.references = new List<string>();
 
-        if (!data.references.Contains(packageRuntimeAsm))
+        if (data.name == packageRuntimeAsm) return;
+
+        bool alreadyExists = data.references.Any(r => r.Contains(packageRuntimeAsm));
+
+        if (!alreadyExists)
         {
             data.references.Add(packageRuntimeAsm);
+
             string updatedJson = JsonUtility.ToJson(data, true);
+
             File.WriteAllText(asmdefPath, updatedJson);
             AssetDatabase.ImportAsset(asmdefPath);
-            Debug.Log($"[ManoData] Automatically added {packageRuntimeAsm} to {asmdefPath}");
+            Debug.Log($"<color=green>[ManoData]</color> Successfully added reference to <b>{data.name}</b>");
         }
     }
 
@@ -62,5 +69,10 @@ public static class ManoDataAsmdefUtility
     {
         public string name;
         public List<string> references;
+        public List<string> includePlatforms;
+        public List<string> excludePlatforms;
+        public bool allowUnsafeCode;
+        public bool overrideReferences;
+        public bool autoReferenced;
     }
 }
