@@ -1,11 +1,11 @@
 {
     "name": "com.manostudio.manodatahub",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "displayName": "Mano Data Hub",
     "description": "Powerful Data Hub for Unity with Zero GC Alloc.",
     "unity": "6000.0",
     "author": {
-        "name": "mano studio",
+        "name": "Mano Studio",
         "url": "https://github.com/ManoStudio/Mano-Game-Data-Unity.git"
     }
 }
