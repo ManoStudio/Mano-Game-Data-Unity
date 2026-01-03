@@ -46,6 +46,14 @@ namespace ManoData
                 SyncFromSupabase(so);
             }
             GUI.backgroundColor = Color.white;
+
+            GUILayout.Space(10);
+
+            EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+
+            EditorGUILayout.LabelField("Last Sync Time", so.lastSyncTime);
+
+            EditorGUILayout.EndVertical();
         }
 
         private void SyncFromSupabase(GameDataDocumentSO so)

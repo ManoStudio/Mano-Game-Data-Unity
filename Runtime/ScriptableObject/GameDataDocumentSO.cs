@@ -13,7 +13,7 @@ namespace ManoData
         public string projectId = "your-project-id";
 
         [Header("Sync Status")]
-        public string lastSyncTime = "Never";
+        [HideInInspector] public string lastSyncTime = "Never";
         [HideInInspector] public string generatedCodePath = "Assets/Scripts/GeneratedData/";
         [HideInInspector] public string rawJson;
 
