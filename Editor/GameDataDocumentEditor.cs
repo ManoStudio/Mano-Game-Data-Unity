@@ -54,6 +54,11 @@ namespace ManoData
             EditorGUILayout.LabelField("Last Sync Time", so.lastSyncTime);
 
             EditorGUILayout.EndVertical();
+
+            if (GUI.changed)
+            {
+                EditorUtility.SetDirty(so);
+            }
         }
 
         private void SyncFromSupabase(GameDataDocumentSO so)
