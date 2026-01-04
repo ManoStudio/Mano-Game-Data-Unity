@@ -16,6 +16,8 @@ namespace ManoData
             string outputPath = string.IsNullOrEmpty(so.generatedCodePath) ? "Assets/" : so.generatedCodePath;
             if (!Directory.Exists(outputPath)) Directory.CreateDirectory(outputPath);
 
+            GenerateAsmdef(outputPath);
+
             foreach (var table in so.document.tables)
             {
                 string className = SanitizeName(table.name);
@@ -29,6 +31,36 @@ namespace ManoData
             AssetDatabase.Refresh();
         }
 
+        private static void GenerateAsmdef(string path)
+        {
+            string asmdefName = "ManoData.Generated";
+            string filePath = Path.Combine(path, asmdefName + ".asmdef");
+
+            if (File.Exists(filePath)) return;
+
+            StringBuilder sb = new StringBuilder();
+            sb.AppendLine("{");
+            sb.AppendLine($"    \"name\": \"{asmdefName}\",");
+            sb.AppendLine("    \"rootNamespace\": \"ManoData.Generated\",");
+            sb.AppendLine("    \"references\": [");
+            sb.AppendLine("        \"GUID:f59a9ad2b6946f140880f089a803730c\",");
+            sb.AppendLine("        \"ManoData.Runtime\"");
+            sb.AppendLine("    ],");
+            sb.AppendLine("    \"includePlatforms\": [],");
+            sb.AppendLine("    \"excludePlatforms\": [],");
+            sb.AppendLine("    \"allowUnsafeCode\": false,");
+            sb.AppendLine("    \"overrideReferences\": false,");
+            sb.AppendLine("    \"precompiledReferences\": [],");
+            sb.AppendLine("    \"autoReferenced\": true,");
+            sb.AppendLine("    \"defineConstraints\": [],");
+            sb.AppendLine("    \"versionDefines\": [],");
+            sb.AppendLine("    \"noEngineReferences\": false");
+            sb.AppendLine("}");
+
+            File.WriteAllText(filePath, sb.ToString());
+            Debug.Log($"<color=green>[ManoData]</color> Generated {asmdefName}.asmdef at {path}");
+        }
+
         private static string BuildRegistryCode(List<TableContent> tables)
         {
             System.Text.StringBuilder sb = new System.Text.StringBuilder();
@@ -37,7 +69,7 @@ namespace ManoData
             sb.AppendLine("using UnityEngine;");
             sb.AppendLine("using System.Linq;");
             sb.AppendLine("");
-            sb.AppendLine("namespace ManoData");
+            sb.AppendLine("namespace ManoData.Generated");
             sb.AppendLine("{");
             sb.AppendLine("     public static class ManoDataRegistry");
             sb.AppendLine("     {");
@@ -82,7 +114,7 @@ namespace ManoData
             sb.AppendLine("using UnityEngine;");
             sb.AppendLine("using System.Collections.Generic;");
             sb.AppendLine("");
-            sb.AppendLine("namespace ManoData");
+            sb.AppendLine("namespace ManoData.Generated");
             sb.AppendLine("{");
             sb.AppendLine("     [System.Serializable]");
             sb.AppendLine($"     public class {className} : IManoDataRow");
@@ -145,21 +177,5 @@ namespace ManoData
         }
 
         private static string SanitizeName(string name) => name.Replace(" ", "").Replace("-", "_");
-    }
-
-    public static class ManoDataPreWarmer
-    {
-        public static void PreWarmAll(GameDataDocumentSO so)
-        {
-            foreach (var table in so.document.tables)
-            {
-                foreach (var row in table.data)
-                {
-                    string id = row.Values.First().ToString();
-                    // Generator จะต้องเขียน code ให้ match ตามชื่อ table เช่น:
-                    // if (table.name == "PlayerCharacters") so.PreWarmObject<PlayerCharacters>(table.name, id, row);
-                }
-            }
-        }
     }
 }
