@@ -1,6 +1,8 @@
 ﻿using UnityEngine;
 using Newtonsoft.Json;
 using System.Collections.Generic;
+using LZStringCSharp;
+using Newtonsoft.Json.Serialization;
 
 namespace ManoData
 {
@@ -29,15 +31,29 @@ namespace ManoData
             if (string.IsNullOrEmpty(rawJson)) return;
             try
             {
-                var wrappedData = JsonConvert.DeserializeObject<List<SupabaseResponse>>(rawJson);
-                if (wrappedData != null && wrappedData.Count > 0)
-                {
-                    document = wrappedData[0].data;
-                    BuildIndex();
-                    _objectCache.Clear();
-                }
+                Debug.Log($"Raw Data : {rawJson}");
+
+                var jsonToParse = JsonConvert.DeserializeObject<List<SupabaseWrapper>>(rawJson);
+
+                Debug.Log($"Json parse Data : {jsonToParse[0].data}");
+
+                var clearString = jsonToParse[0].data.Trim('"');
+
+                Debug.Log($"ClearString : {clearString}");
+
+                var data = LZString.DecompressFromUTF16(clearString);
+
+                Debug.Log($"Data : {data}");
+
+                var documentData = JsonConvert.DeserializeObject<GameDataDocument>(data);
+
+                document = documentData;
+                BuildIndex();
             }
-            catch (System.Exception e) { Debug.LogError($"ManoData: {e.Message}"); }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"ManoData Decompress/Parse Error: {e.Message}");
+            }
         }
 
         private void BuildIndex()
@@ -78,5 +94,11 @@ namespace ManoData
 
         [System.Serializable]
         public class SupabaseResponse { public GameDataDocument data; }
+
+        [System.Serializable]
+        public class SupabaseWrapper
+        {
+            public string data;
+        }
     }
 }

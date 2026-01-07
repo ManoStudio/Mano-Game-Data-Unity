@@ -1,4 +1,6 @@
-﻿using UnityEditor;
+﻿using LZStringCSharp;
+using Mono.Cecil.Cil;
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.Networking;
 
@@ -79,9 +81,7 @@ namespace ManoData
 
                 if (request.result == UnityWebRequest.Result.Success)
                 {
-                    string json = request.downloadHandler.text;
-
-                    so.rawJson = json;
+                    so.rawJson = request.downloadHandler.text;
                     so.lastSyncTime = System.DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
 
                     so.LoadDataFromJSON();

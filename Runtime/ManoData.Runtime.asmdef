@@ -1,7 +1,9 @@
 {
     "name": "ManoData.Runtime",
     "rootNamespace": "",
-    "references": [],
+    "references": [
+        "GUID:39573e0722cc0de41853dec06d2bd817"
+    ],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,

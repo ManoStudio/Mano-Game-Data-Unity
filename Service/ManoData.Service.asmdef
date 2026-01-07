@@ -1,13 +1,8 @@
 {
-    "name": "ManoData.Editor",
+    "name": "ManoData.Service",
     "rootNamespace": "",
-    "references": [
-        "GUID:b7410135017855942a3a8bb3672b84f7",
-        "GUID:39573e0722cc0de41853dec06d2bd817"
-    ],
-    "includePlatforms": [
-        "Editor"
-    ],
+    "references": [],
+    "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
     "overrideReferences": false,
