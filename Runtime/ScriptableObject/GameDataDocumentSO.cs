@@ -41,11 +41,11 @@ namespace ManoData
 
                 Debug.Log($"ClearString : {clearString}");
 
-                var data = LZString.DecompressFromUTF16(clearString);
+                //var data = LZString.DecompressFromUTF16(clearString);
 
-                Debug.Log($"Data : {data}");
+                //Debug.Log($"Data : {data}");
 
-                var documentData = JsonConvert.DeserializeObject<GameDataDocument>(data);
+                var documentData = JsonConvert.DeserializeObject<GameDataDocument>(clearString);
 
                 document = documentData;
                 BuildIndex();
