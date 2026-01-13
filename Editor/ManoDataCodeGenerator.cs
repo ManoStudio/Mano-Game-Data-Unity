@@ -22,6 +22,8 @@ namespace ManoData
             }
 
             string outputPath = string.IsNullOrEmpty(so.generatedCodePath) ? "Assets/Scripts/GeneratedData/" : so.generatedCodePath;
+            string nameSpaceData = string.IsNullOrEmpty(so.NameSpaceDocument) ? "" : so.NameSpaceDocument;
+
             if (!Directory.Exists(outputPath)) Directory.CreateDirectory(outputPath);
 
             GenerateAsmdef(outputPath);
@@ -36,7 +38,7 @@ namespace ManoData
                 }
 
                 string className = SanitizeName(table.name);
-                string code = BuildClassCode(className, table.schema);
+                string code = BuildClassCode(className, table.schema, nameSpaceData);
                 File.WriteAllText(Path.Combine(outputPath, className + ".cs"), code);
 
                 generatedTables.Add(table);
@@ -68,14 +70,15 @@ namespace ManoData
             File.WriteAllText(filePath, sb.ToString());
         }
 
-        private static string BuildClassCode(string className, List<ColumnSchema> schemas)
+        private static string BuildClassCode(string className, List<ColumnSchema> schemas, string nameSpaceData)
         {
             StringBuilder sb = new StringBuilder();
             sb.AppendLine("using System;");
             sb.AppendLine("using System.Collections.Generic;");
             sb.AppendLine("using UnityEngine;");
             sb.AppendLine("");
-            sb.AppendLine("namespace ManoData.Generated");
+            var ns = string.IsNullOrEmpty(nameSpaceData) ? "ManoData.Generated" : $"ManoData.{nameSpaceData}";
+            sb.AppendLine($"namespace {ns}");
             sb.AppendLine("{");
             sb.AppendLine($"    [Serializable]");
             sb.AppendLine($"    public class {className} : IManoDataRow");

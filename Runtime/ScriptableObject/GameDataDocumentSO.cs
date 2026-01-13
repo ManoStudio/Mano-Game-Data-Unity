@@ -4,15 +4,19 @@ using Newtonsoft.Json.Linq; // เพิ่มตัวนี้เข้าม�
 using System.Collections.Generic;
 using System;
 using System.Linq;
+using UnityEngine.Scripting;
 
 namespace ManoData
 {
     [CreateAssetMenu(fileName = "GameDataDocument", menuName = "ManoData/Document")]
     public class GameDataDocumentSO : ScriptableObject
     {
+        [Header("Document Data")]
+        [RequiredMember] public string NameSpaceDocument = default!;
+        public string generatedCodePath = "Assets/Scripts/GeneratedData/";
+
         [Header("Sync Status")]
         [ManoOnly] public string lastEdit;
-        public string generatedCodePath = "Assets/Scripts/GeneratedData/";
         [ManoOnly][TextArea(5, 20)] public string rawJson;
 
         [ManoOnly] public List<SelectedSheet> availableSheets = new List<SelectedSheet>();
