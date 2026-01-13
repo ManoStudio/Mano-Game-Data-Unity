@@ -22,11 +22,11 @@ namespace ManoData
             }
 
             string outputPath = string.IsNullOrEmpty(so.generatedCodePath) ? "Assets/Scripts/GeneratedData/" : so.generatedCodePath;
-            string nameSpaceData = string.IsNullOrEmpty(so.NameSpaceDocument) ? "" : so.NameSpaceDocument;
+            string ns = string.IsNullOrEmpty(so.NameSpaceDocument) ? "ManoData.Generated" : $"ManoData.{so.NameSpaceDocument}";
 
             if (!Directory.Exists(outputPath)) Directory.CreateDirectory(outputPath);
 
-            GenerateAsmdef(outputPath);
+            GenerateAsmdef(outputPath, ns);
 
             List<TableContent> generatedTables = new List<TableContent>();
 
@@ -38,7 +38,7 @@ namespace ManoData
                 }
 
                 string className = SanitizeName(table.name);
-                string code = BuildClassCode(className, table.schema, nameSpaceData);
+                string code = BuildClassCode(className, table.schema, ns);
                 File.WriteAllText(Path.Combine(outputPath, className + ".cs"), code);
 
                 generatedTables.Add(table);
@@ -53,9 +53,8 @@ namespace ManoData
             Debug.Log("[ManoData] Selective Generate Completed.");
         }
 
-        private static void GenerateAsmdef(string path)
+        private static void GenerateAsmdef(string path, string asmdefName = "ManoData.Generated")
         {
-            string asmdefName = "ManoData.Generated";
             string filePath = Path.Combine(path, asmdefName + ".asmdef");
 
             if (File.Exists(filePath)) return;
@@ -77,8 +76,7 @@ namespace ManoData
             sb.AppendLine("using System.Collections.Generic;");
             sb.AppendLine("using UnityEngine;");
             sb.AppendLine("");
-            var ns = string.IsNullOrEmpty(nameSpaceData) ? "ManoData.Generated" : $"ManoData.{nameSpaceData}";
-            sb.AppendLine($"namespace {ns}");
+            sb.AppendLine($"namespace {nameSpaceData}");
             sb.AppendLine("{");
             sb.AppendLine($"    [Serializable]");
             sb.AppendLine($"    public class {className} : IManoDataRow");
