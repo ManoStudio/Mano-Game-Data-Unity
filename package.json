@@ -1,6 +1,6 @@
 {
     "name": "com.manostudio.manodatahub",
-    "version": "1.1.5",
+    "version": "1.1.6",
     "displayName": "Mano Data Hub",
     "description": "Powerful Data Hub for Unity with Zero GC Alloc.",
     "unity": "6000.0",

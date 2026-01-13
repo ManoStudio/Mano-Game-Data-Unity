@@ -20,7 +20,8 @@ namespace ManoData
         {
             ValidateInit();
 
-            return GameData.GetCachedObject<T>(tableName, rowId);
+            if (string.IsNullOrEmpty(rowId)) return default;
+            return GameData.GetCachedObject<T>(rowId);
         }
 
         private void ValidateInit()
@@ -30,5 +31,7 @@ namespace ManoData
                 GameData.Init(gameDataDocumentSO);
             }
         }
+
+        public bool IsValid => !string.IsNullOrEmpty(tableName) && !string.IsNullOrEmpty(rowId);
     }
 }

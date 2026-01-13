@@ -147,7 +147,7 @@ namespace ManoData
 
         private static string BuildRegistryCode(List<TableContent> tables, string nameSpaceData = "ManoData.Generated")
         {
-            StringBuilder sb = new StringBuilder();
+            System.Text.StringBuilder sb = new System.Text.StringBuilder();
             sb.AppendLine("using UnityEngine;");
             sb.AppendLine("using System.Linq;");
             sb.AppendLine("using System.Collections.Generic;");
