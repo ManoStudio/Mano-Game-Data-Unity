@@ -46,7 +46,7 @@ namespace ManoData
                 Debug.Log($"[ManoData] Generated: {className}.cs");
             }
 
-            string registryCode = BuildRegistryCode(generatedTables);
+            string registryCode = BuildRegistryCode(generatedTables, ns);
             File.WriteAllText(Path.Combine(outputPath, "ManoDataRegistry.cs"), registryCode);
 
             AssetDatabase.Refresh();
@@ -145,14 +145,14 @@ namespace ManoData
             return sb.ToString();
         }
 
-        private static string BuildRegistryCode(List<TableContent> tables)
+        private static string BuildRegistryCode(List<TableContent> tables, string nameSpaceData = "ManoData.Generated")
         {
             StringBuilder sb = new StringBuilder();
             sb.AppendLine("using UnityEngine;");
             sb.AppendLine("using System.Linq;");
             sb.AppendLine("using System.Collections.Generic;");
             sb.AppendLine("");
-            sb.AppendLine("namespace ManoData.Generated");
+            sb.AppendLine($"namespace {nameSpaceData}");
             sb.AppendLine("{");
             sb.AppendLine("    public static class ManoDataRegistry");
             sb.AppendLine("    {");
