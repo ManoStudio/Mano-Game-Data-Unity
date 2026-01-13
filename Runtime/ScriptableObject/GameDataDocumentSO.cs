@@ -15,6 +15,8 @@ namespace ManoData
         public string generatedCodePath = "Assets/Scripts/GeneratedData/";
         [ManoOnly][TextArea(5, 20)] public string rawJson;
 
+        [ManoOnly] public List<string> availableSheets = new List<string>();
+
         [System.NonSerialized]
         public GameDataDocument document = new GameDataDocument();
 

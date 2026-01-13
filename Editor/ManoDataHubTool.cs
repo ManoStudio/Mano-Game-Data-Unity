@@ -12,7 +12,7 @@ namespace ManoData
 {
     public class ManoDataHubTool : EditorWindow
     {
-        private const float TOOL_VERSION = 0.8f;
+        private const float TOOL_VERSION = 0.1f;
         public GoogleSettingSO googleSetting;
         public GameDataDocumentSO targetSO;
 
@@ -20,9 +20,9 @@ namespace ManoData
         private bool isWorking = false;
         private string newTableName = "InventoryTable";
 
-        private List<string> availableSheets = new List<string>();
         private Dictionary<string, bool> selectedSheets = new Dictionary<string, bool>();
         private bool showSheetSelector = false;
+        private Vector2 scrollPos;
 
         [MenuItem("Mano Tools/Mano Data Hub")]
         public static void ShowWindow() => GetWindow<ManoDataHubTool>("Mano Dashboard");
@@ -31,27 +31,37 @@ namespace ManoData
         {
             if (googleSetting == null)
             {
-                EditorGUILayout.HelpBox("กรุณาใส่ GoogleSettingSO เพื่อเริ่มใช้งาน", MessageType.Warning);
+                EditorGUILayout.HelpBox("Please assign GoogleSettingSO to start using.", MessageType.Warning);
                 googleSetting = (GoogleSettingSO)EditorGUILayout.ObjectField("Setting SO", googleSetting, typeof(GoogleSettingSO), false);
                 return;
             }
 
             if (isWorking)
             {
-                EditorGUILayout.HelpBox("กำลังติดต่อ Google Cloud... กรุณารอสักครู่", MessageType.Info);
+                EditorGUILayout.HelpBox("Connecting to Google Cloud... Please wait", MessageType.Info);
                 return;
             }
 
+            scrollPos = EditorGUILayout.BeginScrollView(scrollPos);
+
             DrawMainInterface();
+
+            EditorGUILayout.EndScrollView();
         }
 
         void DrawMainInterface()
         {
-            GUILayout.Label("🔐 MANO DATA HUB (PRO OAUTH2)", EditorStyles.boldLabel);
+            GUILayout.Label("🔐 MANO DATA HUB (PRO)", EditorStyles.boldLabel);
             googleSetting = (GoogleSettingSO)EditorGUILayout.ObjectField("Setting SO", googleSetting, typeof(GoogleSettingSO), false);
             targetSO = (GameDataDocumentSO)EditorGUILayout.ObjectField("Target Data SO", targetSO, typeof(GameDataDocumentSO), false);
 
             EditorGUILayout.Space(10);
+
+            if (targetSO == null)
+            {
+                EditorGUILayout.HelpBox("Please assign 'Target Data SO' (GameDataDocumentSO) to reveal tool controls.", MessageType.Info);
+                return;
+            }
 
             if (string.IsNullOrEmpty(googleSetting.RefreshToken))
             {
@@ -65,7 +75,7 @@ namespace ManoData
 
         void DrawLoginView()
         {
-            EditorGUILayout.HelpBox("ยังไม่ได้เชื่อมต่อบัญชี Google", MessageType.Warning);
+            EditorGUILayout.HelpBox("Google Account not connected", MessageType.Warning);
             if (GUILayout.Button("1. Login & Get Auth Code", GUILayout.Height(30)))
                 Application.OpenURL(GetAuthUrl());
 
@@ -80,7 +90,7 @@ namespace ManoData
             // --- SECTION: INITIALIZE PROJECT ---
             GUILayout.Label("🚀 PROJECT SETUP", EditorStyles.boldLabel);
             if (GUILayout.Button("INITIALIZE PROJECT (Welcome & Config)", GUILayout.Height(30)))
-                _ = InitializeProjectOAuth();
+                RunAsyncAction(InitializeProjectOAuth);
 
             EditorGUILayout.Space(10);
 
@@ -91,7 +101,7 @@ namespace ManoData
 
             GUI.backgroundColor = Color.cyan;
             if (GUILayout.Button("➕ CREATE PRO TEMPLATE TABLE", GUILayout.Height(35)))
-                _ = CreateManoFullTemplateAsync(newTableName);
+                RunAsyncAction(() => CreateManoFullTemplateAsync(newTableName));
             GUI.backgroundColor = Color.white;
             EditorGUILayout.EndVertical();
 
@@ -102,40 +112,47 @@ namespace ManoData
             EditorGUILayout.BeginVertical("box");
 
             if (GUILayout.Button("🔍 FIND ALL SHEETS", GUILayout.Height(30)))
-            {
-                _ = FindAllSheetsAsync();
-            }
+                RunAsyncAction(FindAllSheetsAsync);
 
-            if (availableSheets.Count > 0)
+            if (targetSO.availableSheets != null && targetSO.availableSheets.Count > 0)
             {
                 EditorGUILayout.Space(5);
                 EditorGUILayout.LabelField("Select sheets to import:", EditorStyles.miniBoldLabel);
 
-                // แสดงรายการ Sheet พร้อม Checkbox
                 EditorGUILayout.BeginVertical("helpbox");
-                for (int i = 0; i < availableSheets.Count; i++)
+
+                // ใช้ for loop เพื่อความปลอดภัยในการเข้าถึง index
+                for (int i = 0; i < targetSO.availableSheets.Count; i++)
                 {
-                    string sName = availableSheets[i];
+                    string sName = targetSO.availableSheets[i];
+
+                    // ป้องกัน KeyNotFoundException
+                    if (!selectedSheets.ContainsKey(sName))
+                        selectedSheets[sName] = true;
+
                     selectedSheets[sName] = EditorGUILayout.ToggleLeft(sName, selectedSheets[sName]);
                 }
+
                 EditorGUILayout.EndVertical();
 
                 EditorGUILayout.BeginHorizontal();
                 if (GUILayout.Button("Select All")) SetAllSheets(true);
                 if (GUILayout.Button("Deselect All")) SetAllSheets(false);
                 EditorGUILayout.EndHorizontal();
+
+                EditorGUILayout.Space(10);
+
+                GUI.backgroundColor = Color.green;
+                if (GUILayout.Button("📥 IMPORT SELECTED SHEETS", GUILayout.Height(50)))
+                    RunAsyncAction(SyncAndGenerateAsync);
+                GUI.backgroundColor = Color.white;
             }
-            EditorGUILayout.EndVertical();
-
-            EditorGUILayout.Space(10);
-
-            // ปรับปุ่ม Import เดิมให้ใช้เฉพาะที่เลือก
-            GUI.backgroundColor = Color.green;
-            if (GUILayout.Button("📥 IMPORT SELECTED SHEETS", GUILayout.Height(50)))
+            else
             {
-                _ = SyncAndGenerateAsync();
+                EditorGUILayout.HelpBox("No sheets found. Click 'FIND ALL SHEETS' to fetch data from Google.", MessageType.None);
             }
-            GUI.backgroundColor = Color.white;
+
+            EditorGUILayout.EndVertical();
 
             EditorGUILayout.Space(20);
             if (GUILayout.Button("Disconnect / Logout"))
@@ -146,9 +163,27 @@ namespace ManoData
             }
         }
 
+        private async void RunAsyncAction(Func<Task> action)
+        {
+            try
+            {
+                isWorking = true;
+                await action();
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[ManoData] Error: {e.Message}");
+            }
+            finally
+            {
+                isWorking = false;
+                Repaint();
+            }
+        }
+
         private void SetAllSheets(bool val)
         {
-            foreach (var key in availableSheets) selectedSheets[key] = val;
+            foreach (var key in targetSO.availableSheets) selectedSheets[key] = val;
         }
 
         // ==========================================
@@ -160,7 +195,7 @@ namespace ManoData
             isWorking = true;
             await RefreshTokenIfNeeded();
 
-            // 1. สร้างหน้า Welcome และ _Config (ซ่อน)
+            // 1. Create Welcome and _Config (hidden) sheets
             var initRequest = new
             {
                 requests = new object[] {
@@ -170,16 +205,16 @@ namespace ManoData
             };
             await ExecuteBatchUpdate(initRequest);
 
-            // 2. ตกแต่งหน้า Welcome
+            // 2. Decorate Welcome page
             string welcomeUrl = $"https://sheets.googleapis.com/v4/spreadsheets/{googleSetting.SpreadSheetID}/values/Welcome!B2:B5?valueInputOption=USER_ENTERED";
             var welcomeData = new
             {
                 values = new[] {
-                new[] { "MANO DATA HUB" },
-                new[] { "STATUS: CONNECTED (OAUTH2)" },
-                new[] { "VERSION: " + TOOL_VERSION },
-                new[] { "READY TO SYNC WITH UNITY" }
-            }
+                    new[] { "MANO DATA HUB" },
+                    new[] { "STATUS: CONNECTED (OAUTH2)" },
+                    new[] { "VERSION: " + TOOL_VERSION },
+                    new[] { "READY TO SYNC WITH UNITY" }
+                }
             };
             await SendPutRequest(welcomeUrl, JsonConvert.SerializeObject(welcomeData));
 
@@ -197,7 +232,7 @@ namespace ManoData
 
             if (string.IsNullOrEmpty(googleSetting.SpreadSheetID))
             {
-                EditorUtility.DisplayDialog("Error", "กรุณาใส่ Spreadsheet ID ใน GoogleSettingSO ก่อน", "OK");
+                EditorUtility.DisplayDialog("Error", "Please enter Spreadsheet ID in GoogleSettingSO first.", "OK");
                 return;
             }
 
@@ -217,28 +252,33 @@ namespace ManoData
 
                     if (sheets != null)
                     {
-                        availableSheets.Clear();
+                        targetSO.availableSheets.Clear();
                         foreach (var sheet in sheets)
                         {
                             string title = sheet["properties"]?["title"]?.ToString();
                             if (!string.IsNullOrEmpty(title) && title != "Welcome" && !title.StartsWith("_"))
                             {
-                                availableSheets.Add(title);
+                                targetSO.availableSheets.Add(title);
                                 if (!selectedSheets.ContainsKey(title)) selectedSheets[title] = true;
                             }
                         }
 
-                        if (availableSheets.Count == 0)
-                            Debug.LogWarning("[ManoData] เชื่อมต่อสำเร็จ แต่ไม่พบ Sheet ที่เข้าเงื่อนไข (ต้องไม่ใช่ Welcome หรือนำหน้าด้วย _)");
+                        if (targetSO.availableSheets.Count == 0)
+                            Debug.LogWarning("[ManoData] Connection successful but no valid sheets found (Must not be 'Welcome' or start with '_').");
                         else
-                            Debug.Log($"[ManoData] พบทั้งหมด {availableSheets.Count} Sheets");
+                            Debug.Log($"[ManoData] Found {targetSO.availableSheets.Count} Sheets");
+
+                        EditorUtility.SetDirty(targetSO);
+                        AssetDatabase.SaveAssets();
+                        AssetDatabase.Refresh();
+                        Repaint();
                     }
                 }
                 else
                 {
                     string errorDetail = www.downloadHandler.text;
                     Debug.LogError($"[ManoData] API Error: {errorDetail}");
-                    EditorUtility.DisplayDialog("API Error", "ไม่สามารถดึงข้อมูลได้: \n" + errorDetail, "OK");
+                    EditorUtility.DisplayDialog("API Error", "Could not fetch data: \n" + errorDetail, "OK");
                 }
             }
             isWorking = false;
@@ -250,12 +290,12 @@ namespace ManoData
             var sheetsToImport = selectedSheets.Where(x => x.Value).Select(x => x.Key).ToList();
             if (sheetsToImport.Count == 0)
             {
-                EditorUtility.DisplayDialog("Warning", "กรุณาเลือก Sheet ที่ต้องการอย่างน้อย 1 รายการ", "OK");
+                EditorUtility.DisplayDialog("Warning", "Please select at least one sheet to import.", "OK");
                 return;
             }
             if (targetSO == null)
             {
-                EditorUtility.DisplayDialog("Error", "กรุณาใส่ Target Data SO", "OK");
+                EditorUtility.DisplayDialog("Error", "Please assign Target Data SO.", "OK");
                 return;
             }
 
@@ -278,10 +318,10 @@ namespace ManoData
                         EditorUtility.SetDirty(targetSO);
                         AssetDatabase.SaveAssets();
 
-                        Debug.Log("[ManoData] ข้อมูลมาแล้ว กำลังเริ่ม Generate Code...");
+                        Debug.Log("[ManoData] Data received. Starting code generation...");
                         ManoDataCodeGenerator.Generate(targetSO);
 
-                        EditorUtility.DisplayDialog("Mano Sync", "Sync Data และ Generate Code สำเร็จ!", "OK");
+                        EditorUtility.DisplayDialog("Mano Sync", "Data Sync and Code Generation successful!", "OK");
                     }
                     else
                     {
@@ -304,74 +344,70 @@ namespace ManoData
             isWorking = true;
             await RefreshTokenIfNeeded();
 
-            // 1. สร้าง Sheet ใหม่
             await ExecuteBatchUpdate(new { requests = new[] { new { addSheet = new { properties = new { title = sheetName } } } } });
 
-            // 2. ดึง SheetId เพื่อใช้ในการแต่งสี
             int sheetId = await GetSheetIdByName(sheetName);
 
-            // 3. ใส่ข้อมูล Header (Row 1-2)
             string valuesUrl = $"https://sheets.googleapis.com/v4/spreadsheets/{googleSetting.SpreadSheetID}/values/{sheetName}!A1:D3?valueInputOption=USER_ENTERED";
             var headerData = new
             {
                 values = new[] {
-                new[] { "ID", "Name", "Type", "Description" },
-                new[] { "string", "string", "enum", "string" },
-                new[] { "ITEM_001", "Sample Item", "Weapon", "Add description here..." }
-            }
+                    new[] { "ID", "Name", "Type", "Description" },
+                    new[] { "string", "string", "enum", "string" },
+                    new[] { "ITEM_001", "Sample Item", "Weapon", "Add description here..." }
+                }
             };
             await SendPutRequest(valuesUrl, JsonConvert.SerializeObject(headerData));
 
-            // 4. อลังการงานสร้าง: Formatting (Colors, Frozen, Alignment, Borders)
             var styleRequest = new
             {
                 requests = new object[] {
-        new { updateSheetProperties = new { properties = new { sheetId = sheetId, gridProperties = new { frozenRowCount = 2 } }, fields = "gridProperties.frozenRowCount" }},
+                    new { updateSheetProperties = new { properties = new { sheetId = sheetId, gridProperties = new { frozenRowCount = 2 } }, fields = "gridProperties.frozenRowCount" }},
 
-        new { repeatCell = new {
-            range = new { sheetId = sheetId, startRowIndex = 0, endRowIndex = 2 },
-            cell = new { userEnteredFormat = new {
-                backgroundColor = new { red = 0.12f, green = 0.16f, blue = 0.23f },
-                textFormat = new { foregroundColor = new { red = 1f, green = 1f, blue = 1f }, bold = true },
-                horizontalAlignment = "CENTER"
-            }},
-            fields = "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)"
-        }},
+                    new { repeatCell = new {
+                        range = new { sheetId = sheetId, startRowIndex = 0, endRowIndex = 2 },
+                        cell = new { userEnteredFormat = new {
+                            backgroundColor = new { red = 0.12f, green = 0.16f, blue = 0.23f },
+                            textFormat = new { foregroundColor = new { red = 1f, green = 1f, blue = 1f }, bold = true },
+                            horizontalAlignment = "CENTER"
+                        }},
+                        fields = "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)"
+                    }},
 
-        new { addConditionalFormatRule = new {
-            rule = new {
-                ranges = new[] { new { sheetId = sheetId, startRowIndex = 2, startColumnIndex = 0, endColumnIndex = 10 } },
-                booleanRule = new {
-                    condition = new {
-                        type = "CUSTOM_FORMULA",
-                        values = new[] { new { userEnteredValue = "=AND(LEN(A3)>0, ISERROR(A3))" } } // สูตรตรวจสอบ Error
-                    },
-                    format = new {
-                        backgroundColor = new { red = 1f, green = 0f, blue = 0f }, // แดงแป๊ด
-                        textFormat = new { foregroundColor = new { red = 1f, green = 1f, blue = 1f }, bold = true }
-                    }
+                    new { addConditionalFormatRule = new {
+                        rule = new {
+                            ranges = new[] { new { sheetId = sheetId, startRowIndex = 2, startColumnIndex = 0, endColumnIndex = 10 } },
+                            booleanRule = new {
+                                condition = new {
+                                    type = "CUSTOM_FORMULA",
+                                    values = new[] { new { userEnteredValue = "=AND(LEN(A3)>0, ISERROR(A3))" } }
+                                },
+                                format = new {
+                                    backgroundColor = new { red = 1f, green = 0f, blue = 0f },
+                                    textFormat = new { foregroundColor = new { red = 1f, green = 1f, blue = 1f }, bold = true }
+                                }
+                            }
+                        },
+                        index = 0
+                    }},
+
+                    new { setDataValidation = new {
+                        range = new { sheetId = sheetId, startRowIndex = 2, endRowIndex = 1000, startColumnIndex = 3, endColumnIndex = 4 },
+                        rule = new {
+                            condition = new {
+                                type = "NUMBER_BETWEEN",
+                                values = new[] { new { userEnteredValue = "0" }, new { userEnteredValue = "999999" } }
+                            },
+                            inputMessage = "Please enter numbers only!",
+                            strict = false
+                        }
+                    }}
                 }
-            },
-            index = 0
-        }},
-
-        new { setDataValidation = new {
-            range = new { sheetId = sheetId, startRowIndex = 2, endRowIndex = 1000, startColumnIndex = 3, endColumnIndex = 4 },
-            rule = new {
-                condition = new {
-                    type = "NUMBER_BETWEEN",
-                    values = new[] { new { userEnteredValue = "0" }, new { userEnteredValue = "999999" } }
-                },
-                inputMessage = "กรุณากรอกเฉพาะตัวเลขเท่านั้น!",
-                strict = false
-            }
-        }}
-    }
             };
             await ExecuteBatchUpdate(styleRequest);
 
             isWorking = false;
-            EditorUtility.DisplayDialog("Success", $"สร้างตาราง {sheetName} เรียบร้อยแล้ว!", "OK");
+            EditorUtility.DisplayDialog("Success", $"Table {sheetName} created successfully!", "OK");
         }
 
         // ==========================================
@@ -430,7 +466,6 @@ namespace ManoData
             return www;
         }
 
-        // (Include OAuth Logic: GetAuthUrl, ExchangeCodeAsync, RefreshTokenIfNeeded จากตัวอย่างก่อนหน้า)
         private string GetAuthUrl()
         {
             string scope = "https://www.googleapis.com/auth/spreadsheets";
@@ -484,33 +519,5 @@ namespace ManoData
         }
 
         [Serializable] public class OAuthResponse { public string access_token; public string refresh_token; public int expires_in; }
-
-        private async Task ImportDataOAuthAsync()
-        {
-            if (targetSO == null) return;
-            isWorking = true;
-
-            await RefreshTokenIfNeeded();
-
-            string range = "Sheet1!A1:Z100";
-            string url = $"https://sheets.googleapis.com/v4/spreadsheets/{googleSetting.SpreadSheetID}/values/{range}";
-
-            using (UnityWebRequest www = UnityWebRequest.Get(url))
-            {
-                www.SetRequestHeader("Authorization", "Bearer " + googleSetting.AccessToken);
-                await www.SendWebRequest();
-
-                if (www.result == UnityWebRequest.Result.Success)
-                {
-                    targetSO.rawJson = www.downloadHandler.text;
-                    targetSO.LoadDataFromJSON();
-                    EditorUtility.SetDirty(targetSO);
-                    AssetDatabase.SaveAssets();
-                    EditorUtility.DisplayDialog("Success", "Data Synced via OAuth2!", "OK");
-                }
-                else { Debug.LogError("Sync Error: " + www.downloadHandler.text); }
-            }
-            isWorking = false;
-        }
     }
 }
