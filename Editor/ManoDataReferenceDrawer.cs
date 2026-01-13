@@ -25,7 +25,8 @@ namespace ManoData
                 return;
             }
 
-            if (dataSO.document == null) dataSO.LoadDataFromJSON();
+            if (dataSO.document == null || dataSO.document.tables.Count == 0)
+                dataSO.LoadDataFromJSON();
 
             Rect contentRect = EditorGUI.PrefixLabel(position, label);
             float w = contentRect.width / 3;

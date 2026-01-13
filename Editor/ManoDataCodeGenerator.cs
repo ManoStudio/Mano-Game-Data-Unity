@@ -11,9 +11,17 @@ namespace ManoData
     {
         public static void Generate(GameDataDocumentSO so)
         {
-            if (so == null || so.document == null) return;
+            if (so == null) return;
 
-            string outputPath = string.IsNullOrEmpty(so.generatedCodePath) ? "Assets/" : so.generatedCodePath;
+            so.LoadDataFromJSON();
+
+            if (so.document == null || so.document.tables == null || so.document.tables.Count == 0)
+            {
+                Debug.LogError("[ManoData] No table found to generate code. Please import data first.");
+                return;
+            }
+
+            string outputPath = string.IsNullOrEmpty(so.generatedCodePath) ? "Assets/Scripts/GeneratedData/" : so.generatedCodePath;
             if (!Directory.Exists(outputPath)) Directory.CreateDirectory(outputPath);
 
             GenerateAsmdef(outputPath);
@@ -23,12 +31,14 @@ namespace ManoData
                 string className = SanitizeName(table.name);
                 string code = BuildClassCode(className, table.schema);
                 File.WriteAllText(Path.Combine(outputPath, className + ".cs"), code);
+                Debug.Log($"[ManoData] Generated: {className}.cs");
             }
 
             string registryCode = BuildRegistryCode(so.document.tables);
             File.WriteAllText(Path.Combine(outputPath, "ManoDataRegistry.cs"), registryCode);
 
             AssetDatabase.Refresh();
+            EditorUtility.DisplayDialog("ManoData", "Generate Code Successfully!", "OK");
         }
 
         private static void GenerateAsmdef(string path)
@@ -41,134 +51,144 @@ namespace ManoData
             StringBuilder sb = new StringBuilder();
             sb.AppendLine("{");
             sb.AppendLine($"    \"name\": \"{asmdefName}\",");
-            sb.AppendLine("    \"rootNamespace\": \"ManoData.Generated\",");
-            sb.AppendLine("    \"references\": [");
-            sb.AppendLine("        \"GUID:f59a9ad2b6946f140880f089a803730c\",");
-            sb.AppendLine("        \"ManoData.Runtime\"");
-            sb.AppendLine("    ],");
-            sb.AppendLine("    \"includePlatforms\": [],");
-            sb.AppendLine("    \"excludePlatforms\": [],");
-            sb.AppendLine("    \"allowUnsafeCode\": false,");
-            sb.AppendLine("    \"overrideReferences\": false,");
-            sb.AppendLine("    \"precompiledReferences\": [],");
-            sb.AppendLine("    \"autoReferenced\": true,");
-            sb.AppendLine("    \"defineConstraints\": [],");
-            sb.AppendLine("    \"versionDefines\": [],");
-            sb.AppendLine("    \"noEngineReferences\": false");
+            sb.AppendLine("    \"references\": [\"ManoData\"],");
+            sb.AppendLine("    \"autoReferenced\": true");
             sb.AppendLine("}");
 
             File.WriteAllText(filePath, sb.ToString());
-            Debug.Log($"<color=green>[ManoData]</color> Generated {asmdefName}.asmdef at {path}");
         }
 
-        private static string BuildRegistryCode(List<TableContent> tables)
-        {
-            System.Text.StringBuilder sb = new System.Text.StringBuilder();
-            sb.AppendLine("// Auto genarate by Mano Data Hub");
-            sb.AppendLine("");
-            sb.AppendLine("using UnityEngine;");
-            sb.AppendLine("using System.Linq;");
-            sb.AppendLine("");
-            sb.AppendLine("namespace ManoData.Generated");
-            sb.AppendLine("{");
-            sb.AppendLine("     public static class ManoDataRegistry");
-            sb.AppendLine("     {");
-            sb.AppendLine("         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]");
-            sb.AppendLine("         static void Register()");
-            sb.AppendLine("         {");
-            sb.AppendLine("             GameData.OnPreWarm = PreWarmAll;");
-            sb.AppendLine("         }");
-            sb.AppendLine("");
-            sb.AppendLine("         public static void PreWarmAll(GameDataDocumentSO so)");
-            sb.AppendLine("         {");
-            sb.AppendLine("             if (so == null || so.document == null) return;");
-            sb.AppendLine("");
-
-            foreach (var table in tables)
-            {
-                string className = SanitizeName(table.name);
-                sb.AppendLine($"            // Pre-warm table: {table.name}");
-                sb.AppendLine($"            var table_{className} = so.document.tables.FirstOrDefault(t => t.name == \"{table.name}\");");
-                sb.AppendLine($"            if (table_{className} != null)");
-                sb.AppendLine("            {");
-                sb.AppendLine($"                foreach (var row in table_{className}.data)");
-                sb.AppendLine("                {");
-                sb.AppendLine("                     string id = row.Values.FirstOrDefault()?.ToString();");
-                sb.AppendLine($"                    if (!string.IsNullOrEmpty(id)) so.PreWarmObject<{className}>(\"{table.name}\", id, row);");
-                sb.AppendLine("                }");
-                sb.AppendLine("            }");
-                sb.AppendLine("");
-            }
-
-            sb.AppendLine("         }");
-            sb.AppendLine("     }");
-            sb.AppendLine("}");
-            return sb.ToString();
-        }
-
-        private static string BuildClassCode(string className, List<ColumnSchema> schema)
+        private static string BuildClassCode(string className, List<ColumnSchema> schemas)
         {
             StringBuilder sb = new StringBuilder();
-            sb.AppendLine("// Auto genarate by Mano Data Hub");
-            sb.AppendLine("");
-            sb.AppendLine("using UnityEngine;");
+            sb.AppendLine("using System;");
             sb.AppendLine("using System.Collections.Generic;");
+            sb.AppendLine("using UnityEngine;");
             sb.AppendLine("");
             sb.AppendLine("namespace ManoData.Generated");
             sb.AppendLine("{");
-            sb.AppendLine("     [System.Serializable]");
-            sb.AppendLine($"     public class {className} : IManoDataRow");
-            sb.AppendLine("     {");
+            sb.AppendLine($"    [Serializable]");
+            sb.AppendLine($"    public class {className} : IManoDataRow");
+            sb.AppendLine("    {");
 
-            foreach (var col in schema)
+            foreach (var col in schemas)
             {
                 string type = MapType(col.type);
-                sb.AppendLine($"        public {type} {SanitizeName(col.name)};");
+                string fieldName = SanitizeName(col.name);
+                sb.AppendLine($"        public {type} {fieldName};");
             }
 
             sb.AppendLine("");
-            sb.AppendLine("         public void SetData(Dictionary<string, object> rawData)");
-            sb.AppendLine("         {");
+            sb.AppendLine("        public void SetData(Dictionary<string, object> rawData)");
+            sb.AppendLine("        {");
 
-            foreach (var col in schema)
+            foreach (var col in schemas)
             {
-                string fieldName = SanitizeName(col.name);
                 string type = col.type.ToLower();
+                string fieldName = SanitizeName(col.name);
 
                 sb.AppendLine($"            if (rawData.ContainsKey(\"{col.name}\"))");
                 sb.AppendLine("            {");
+
                 if (type == "int")
-                    sb.AppendLine($"                {fieldName} = System.Convert.ToInt32(rawData[\"{col.name}\"]);");
+                    sb.AppendLine($"                int.TryParse(rawData[\"{col.name}\"].ToString(), out {fieldName});");
                 else if (type == "float")
-                    sb.AppendLine($"                {fieldName} = System.Convert.ToSingle(rawData[\"{col.name}\"]);");
+                    sb.AppendLine($"                float.TryParse(rawData[\"{col.name}\"].ToString(), out {fieldName});");
                 else if (type == "bool")
-                    sb.AppendLine($"                {fieldName} = System.Convert.ToBoolean(rawData[\"{col.name}\"]);");
+                    sb.AppendLine($"                {fieldName} = rawData[\"{col.name}\"].ToString().ToLower() == \"true\";");
                 else if (type == "vector2")
                     sb.AppendLine($"                {fieldName} = ManoData.ManoDataExtensions.ParseVector2(rawData[\"{col.name}\"].ToString());");
                 else if (type == "vector3")
                     sb.AppendLine($"                {fieldName} = ManoData.ManoDataExtensions.ParseVector3(rawData[\"{col.name}\"].ToString());");
                 else if (type == "color")
                     sb.AppendLine($"                {fieldName} = ManoData.ManoDataExtensions.ParseColor(rawData[\"{col.name}\"].ToString());");
+                else if (type.StartsWith("list_"))
+                {
+                    string innerType = type.Replace("list_", "");
+                    sb.AppendLine($"            if (rawData.ContainsKey(\"{col.name}\"))");
+                    sb.AppendLine("            {");
+                    sb.AppendLine($"                var rawStr = rawData[\"{col.name}\"].ToString();");
+                    sb.AppendLine($"                var items = rawStr.Split('|');");
+                    sb.AppendLine($"                {fieldName} = new {MapType(type)}();");
+                    sb.AppendLine("                foreach(var s in items) {");
+
+                    if (innerType == "int")
+                        sb.AppendLine($"                    if(int.TryParse(s, out int v)) {fieldName}.Add(v);");
+                    else if (innerType == "float")
+                        sb.AppendLine($"                    if(float.TryParse(s, out float v)) {fieldName}.Add(v);");
+                    else if (innerType == "bool")
+                        sb.AppendLine($"                    {fieldName}.Add(s.ToLower() == \"true\");");
+                    else
+                        sb.AppendLine($"                    {fieldName}.Add(s);");
+
+                    sb.AppendLine("                }");
+                    sb.AppendLine("            }");
+                }
                 else
                     sb.AppendLine($"                {fieldName} = rawData[\"{col.name}\"].ToString();");
+
                 sb.AppendLine("            }");
-                sb.AppendLine("");
             }
 
-            sb.AppendLine("         }");
-            sb.AppendLine("     }");
+            sb.AppendLine("        }");
+            sb.AppendLine("    }");
             sb.AppendLine("}");
 
             return sb.ToString();
         }
 
-        private static string MapType(string supabaseType)
+        private static string BuildRegistryCode(List<TableContent> tables)
         {
-            switch (supabaseType.ToLower())
+            StringBuilder sb = new StringBuilder();
+            sb.AppendLine("using UnityEngine;");
+            sb.AppendLine("using System.Linq;");
+            sb.AppendLine("using System.Collections.Generic;");
+            sb.AppendLine("");
+            sb.AppendLine("namespace ManoData.Generated");
+            sb.AppendLine("{");
+            sb.AppendLine("    public static class ManoDataRegistry");
+            sb.AppendLine("    {");
+            sb.AppendLine("        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]");
+            sb.AppendLine("        public static void Register()");
+            sb.AppendLine("        {");
+            sb.AppendLine("            GameData.OnPreWarm += (so) =>");
+            sb.AppendLine("            {");
+
+            foreach (var table in tables)
+            {
+                string className = SanitizeName(table.name);
+                sb.AppendLine($"                PreWarmTable<{className}>(so, \"{table.name}\");");
+            }
+
+            sb.AppendLine("            };");
+            sb.AppendLine("        }");
+            sb.AppendLine("");
+            sb.AppendLine("        private static void PreWarmTable<T>(GameDataDocumentSO so, string tableName) where T : IManoDataRow, new()");
+            sb.AppendLine("        {");
+            sb.AppendLine("            var table = so.GetTable(tableName);");
+            sb.AppendLine("            if (table == null) return;");
+            sb.AppendLine("            foreach (var row in table.data)");
+            sb.AppendLine("            {");
+            sb.AppendLine("                var id = row.Values.FirstOrDefault()?.ToString();");
+            sb.AppendLine("                if (!string.IsNullOrEmpty(id)) so.PreWarmObject<T>(tableName, id, row);");
+            sb.AppendLine("            }");
+            sb.AppendLine("        }");
+            sb.AppendLine("    }");
+            sb.AppendLine("}");
+            return sb.ToString();
+        }
+
+        private static string MapType(string type)
+        {
+            switch (type.ToLower())
             {
                 case "int": return "int";
                 case "float": return "float";
                 case "bool": return "bool";
+                case "list_string": return "List<string>";
+                case "list_int": return "List<int>";
+                case "list_float": return "List<float>";
+                case "list_bool": return "List<bool>";
                 case "vector2": return "Vector2";
                 case "vector3": return "Vector3";
                 case "color": return "Color";
@@ -176,6 +196,6 @@ namespace ManoData
             }
         }
 
-        private static string SanitizeName(string name) => name.Replace(" ", "").Replace("-", "_");
+        private static string SanitizeName(string name) => name.Replace(" ", "").Replace("-", "_").Replace("'", "");
     }
 }

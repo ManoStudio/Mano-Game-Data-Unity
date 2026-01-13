@@ -1,5 +1,8 @@
 ﻿using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using UnityEditor;
 using UnityEngine;
@@ -16,6 +19,10 @@ namespace ManoData
         private string authCode = "";
         private bool isWorking = false;
         private string newTableName = "InventoryTable";
+
+        private List<string> availableSheets = new List<string>();
+        private Dictionary<string, bool> selectedSheets = new Dictionary<string, bool>();
+        private bool showSheetSelector = false;
 
         [MenuItem("Mano Tools/Mano Data Hub")]
         public static void ShowWindow() => GetWindow<ManoDataHubTool>("Mano Dashboard");
@@ -91,10 +98,43 @@ namespace ManoData
             EditorGUILayout.Space(15);
 
             // --- SECTION: DATA SYNC ---
-            GUILayout.Label("📥 DATA SYNCHRONIZATION", EditorStyles.boldLabel);
+            GUILayout.Label("📂 SHEET SELECTION", EditorStyles.boldLabel);
+            EditorGUILayout.BeginVertical("box");
+
+            if (GUILayout.Button("🔍 FIND ALL SHEETS", GUILayout.Height(30)))
+            {
+                _ = FindAllSheetsAsync();
+            }
+
+            if (availableSheets.Count > 0)
+            {
+                EditorGUILayout.Space(5);
+                EditorGUILayout.LabelField("Select sheets to import:", EditorStyles.miniBoldLabel);
+
+                // แสดงรายการ Sheet พร้อม Checkbox
+                EditorGUILayout.BeginVertical("helpbox");
+                for (int i = 0; i < availableSheets.Count; i++)
+                {
+                    string sName = availableSheets[i];
+                    selectedSheets[sName] = EditorGUILayout.ToggleLeft(sName, selectedSheets[sName]);
+                }
+                EditorGUILayout.EndVertical();
+
+                EditorGUILayout.BeginHorizontal();
+                if (GUILayout.Button("Select All")) SetAllSheets(true);
+                if (GUILayout.Button("Deselect All")) SetAllSheets(false);
+                EditorGUILayout.EndHorizontal();
+            }
+            EditorGUILayout.EndVertical();
+
+            EditorGUILayout.Space(10);
+
+            // ปรับปุ่ม Import เดิมให้ใช้เฉพาะที่เลือก
             GUI.backgroundColor = Color.green;
-            if (GUILayout.Button("IMPORT & SYNC ALL DATA", GUILayout.Height(50)))
-                _ = ImportDataOAuthAsync();
+            if (GUILayout.Button("📥 IMPORT SELECTED SHEETS", GUILayout.Height(50)))
+            {
+                _ = SyncAndGenerateAsync();
+            }
             GUI.backgroundColor = Color.white;
 
             EditorGUILayout.Space(20);
@@ -104,6 +144,11 @@ namespace ManoData
                 googleSetting.RefreshToken = "";
                 EditorUtility.SetDirty(googleSetting);
             }
+        }
+
+        private void SetAllSheets(bool val)
+        {
+            foreach (var key in availableSheets) selectedSheets[key] = val;
         }
 
         // ==========================================
@@ -140,6 +185,118 @@ namespace ManoData
 
             isWorking = false;
             EditorUtility.DisplayDialog("Mano Hub", "Project Initialized Successfully!", "OK");
+        }
+
+        private async Task FindAllSheetsAsync()
+        {
+            if (googleSetting == null)
+            {
+                Debug.LogError("[ManoData] GoogleSettingSO is null!");
+                return;
+            }
+
+            if (string.IsNullOrEmpty(googleSetting.SpreadSheetID))
+            {
+                EditorUtility.DisplayDialog("Error", "กรุณาใส่ Spreadsheet ID ใน GoogleSettingSO ก่อน", "OK");
+                return;
+            }
+
+            isWorking = true;
+            await RefreshTokenIfNeeded();
+
+            string url = $"https://sheets.googleapis.com/v4/spreadsheets/{googleSetting.SpreadSheetID}?fields=sheets.properties.title";
+
+            using (UnityWebRequest www = CreateAuthGet(url))
+            {
+                await www.SendWebRequest();
+
+                if (www.result == UnityWebRequest.Result.Success)
+                {
+                    var res = JsonConvert.DeserializeObject<JObject>(www.downloadHandler.text);
+                    var sheets = res["sheets"];
+
+                    if (sheets != null)
+                    {
+                        availableSheets.Clear();
+                        foreach (var sheet in sheets)
+                        {
+                            string title = sheet["properties"]?["title"]?.ToString();
+                            if (!string.IsNullOrEmpty(title) && title != "Welcome" && !title.StartsWith("_"))
+                            {
+                                availableSheets.Add(title);
+                                if (!selectedSheets.ContainsKey(title)) selectedSheets[title] = true;
+                            }
+                        }
+
+                        if (availableSheets.Count == 0)
+                            Debug.LogWarning("[ManoData] เชื่อมต่อสำเร็จ แต่ไม่พบ Sheet ที่เข้าเงื่อนไข (ต้องไม่ใช่ Welcome หรือนำหน้าด้วย _)");
+                        else
+                            Debug.Log($"[ManoData] พบทั้งหมด {availableSheets.Count} Sheets");
+                    }
+                }
+                else
+                {
+                    string errorDetail = www.downloadHandler.text;
+                    Debug.LogError($"[ManoData] API Error: {errorDetail}");
+                    EditorUtility.DisplayDialog("API Error", "ไม่สามารถดึงข้อมูลได้: \n" + errorDetail, "OK");
+                }
+            }
+            isWorking = false;
+            Repaint();
+        }
+
+        private async Task SyncAndGenerateAsync()
+        {
+            var sheetsToImport = selectedSheets.Where(x => x.Value).Select(x => x.Key).ToList();
+            if (sheetsToImport.Count == 0)
+            {
+                EditorUtility.DisplayDialog("Warning", "กรุณาเลือก Sheet ที่ต้องการอย่างน้อย 1 รายการ", "OK");
+                return;
+            }
+            if (targetSO == null)
+            {
+                EditorUtility.DisplayDialog("Error", "กรุณาใส่ Target Data SO", "OK");
+                return;
+            }
+
+            isWorking = true;
+
+            try
+            {
+                await RefreshTokenIfNeeded();
+                string rangesQuery = string.Join("&", sheetsToImport.Select(s => $"ranges={UnityWebRequest.EscapeURL(s)}!A1:Z5000"));
+                string url = $"https://sheets.googleapis.com/v4/spreadsheets/{googleSetting.SpreadSheetID}/values:batchGet?{rangesQuery}";
+
+                using (UnityWebRequest www = CreateAuthGet(url))
+                {
+                    await www.SendWebRequest();
+                    if (www.result == UnityWebRequest.Result.Success)
+                    {
+                        targetSO.rawJson = www.downloadHandler.text;
+                        targetSO.LoadDataFromJSON();
+
+                        EditorUtility.SetDirty(targetSO);
+                        AssetDatabase.SaveAssets();
+
+                        Debug.Log("[ManoData] ข้อมูลมาแล้ว กำลังเริ่ม Generate Code...");
+                        ManoDataCodeGenerator.Generate(targetSO);
+
+                        EditorUtility.DisplayDialog("Mano Sync", "Sync Data และ Generate Code สำเร็จ!", "OK");
+                    }
+                    else
+                    {
+                        Debug.LogError("Sync Error: " + www.downloadHandler.text);
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[ManoData] Error during Sync: {e.Message}");
+            }
+            finally
+            {
+                isWorking = false;
+            }
         }
 
         private async Task CreateManoFullTemplateAsync(string sheetName)
