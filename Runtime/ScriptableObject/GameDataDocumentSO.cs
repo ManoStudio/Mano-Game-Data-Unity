@@ -15,7 +15,8 @@ namespace ManoData
         public string generatedCodePath = "Assets/Scripts/GeneratedData/";
         [ManoOnly][TextArea(5, 20)] public string rawJson;
 
-        [ManoOnly] public List<string> availableSheets = new List<string>();
+        [ManoOnly] public List<SelectedSheet> availableSheets = new List<SelectedSheet>();
+        [ManoOnly] public List<SelectedSheet> generatedSheets = new List<SelectedSheet>();
 
         [System.NonSerialized]
         public GameDataDocument document = new GameDataDocument();
@@ -150,5 +151,13 @@ namespace ManoData
             _tableCache.TryGetValue(tableName, out TableContent table);
             return table;
         }
+    }
+
+    [Serializable]
+    public class SelectedSheet
+    {
+        public string SheetName;
+        public bool IsSelected = true;
+        public bool IsGenCode = true;
     }
 }

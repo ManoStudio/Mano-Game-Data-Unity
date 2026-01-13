@@ -18,8 +18,7 @@ namespace ManoData
 
         public T GetData<T>() where T : IManoDataRow, new()
         {
-            if (gameDataDocumentSO == null) return default;
-            GameData.Init(gameDataDocumentSO);
+            ValidateInit();
 
             return GameData.GetCachedObject<T>(tableName, rowId);
         }

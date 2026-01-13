@@ -20,7 +20,6 @@ namespace ManoData
         private bool isWorking = false;
         private string newTableName = "InventoryTable";
 
-        private Dictionary<string, bool> selectedSheets = new Dictionary<string, bool>();
         private bool showSheetSelector = false;
         private Vector2 scrollPos;
 
@@ -87,80 +86,113 @@ namespace ManoData
 
         void DrawDashboardView()
         {
-            // --- SECTION: INITIALIZE PROJECT ---
-            GUILayout.Label("🚀 PROJECT SETUP", EditorStyles.boldLabel);
-            if (GUILayout.Button("INITIALIZE PROJECT (Welcome & Config)", GUILayout.Height(30)))
-                RunAsyncAction(InitializeProjectOAuth);
+            // --- SECTION: INITIALIZE & TABLE MANAGEMENT (Grouped for cleanliness) ---
+            EditorGUILayout.BeginVertical("helpbox");
+            {
+                GUILayout.Label("🚀 PROJECT SETUP & MANAGEMENT", EditorStyles.boldLabel);
+
+                EditorGUILayout.BeginHorizontal();
+                if (GUILayout.Button("INITIALIZE PROJECT", GUILayout.Height(25)))
+                    RunAsyncAction(InitializeProjectOAuth);
+
+                EditorGUILayout.Space(5);
+
+                GUI.backgroundColor = Color.cyan;
+                if (GUILayout.Button("➕ CREATE PRO TEMPLATE", GUILayout.Height(25)))
+                    RunAsyncAction(() => CreateManoFullTemplateAsync(newTableName));
+                GUI.backgroundColor = Color.white;
+                EditorGUILayout.EndHorizontal();
+
+                newTableName = EditorGUILayout.TextField("New Table Name", newTableName);
+            }
+            EditorGUILayout.EndVertical();
 
             EditorGUILayout.Space(10);
 
-            // --- SECTION: TABLE CREATION ---
-            GUILayout.Label("🛠️ TABLE MANAGEMENT", EditorStyles.boldLabel);
-            EditorGUILayout.BeginVertical("box");
-            newTableName = EditorGUILayout.TextField("Table Name", newTableName);
-
-            GUI.backgroundColor = Color.cyan;
-            if (GUILayout.Button("➕ CREATE PRO TEMPLATE TABLE", GUILayout.Height(35)))
-                RunAsyncAction(() => CreateManoFullTemplateAsync(newTableName));
-            GUI.backgroundColor = Color.white;
-            EditorGUILayout.EndVertical();
-
-            EditorGUILayout.Space(15);
-
-            // --- SECTION: DATA SYNC ---
+            // --- SECTION: SHEET SELECTION ---
             GUILayout.Label("📂 SHEET SELECTION", EditorStyles.boldLabel);
+
             EditorGUILayout.BeginVertical("box");
-
-            if (GUILayout.Button("🔍 FIND ALL SHEETS", GUILayout.Height(30)))
-                RunAsyncAction(FindAllSheetsAsync);
-
-            if (targetSO.availableSheets != null && targetSO.availableSheets.Count > 0)
             {
-                EditorGUILayout.Space(5);
-                EditorGUILayout.LabelField("Select sheets to import:", EditorStyles.miniBoldLabel);
+                if (GUILayout.Button("🔍 FETCH ALL SHEETS FROM GOOGLE", GUILayout.Height(30)))
+                    RunAsyncAction(FindAllSheetsAsync);
 
-                EditorGUILayout.BeginVertical("helpbox");
-
-                // ใช้ for loop เพื่อความปลอดภัยในการเข้าถึง index
-                for (int i = 0; i < targetSO.availableSheets.Count; i++)
+                if (targetSO.availableSheets != null && targetSO.availableSheets.Count > 0)
                 {
-                    string sName = targetSO.availableSheets[i];
+                    EditorGUILayout.Space(5);
 
-                    // ป้องกัน KeyNotFoundException
-                    if (!selectedSheets.ContainsKey(sName))
-                        selectedSheets[sName] = true;
+                    // --- Header Toolbar ---
+                    EditorGUILayout.BeginHorizontal(EditorStyles.toolbar);
+                    GUILayout.Label("Sync", GUILayout.Width(40));
+                    GUILayout.Label("Gen", GUILayout.Width(40));
+                    GUILayout.Label("Sheet Name", EditorStyles.miniBoldLabel);
+                    EditorGUILayout.EndHorizontal();
 
-                    selectedSheets[sName] = EditorGUILayout.ToggleLeft(sName, selectedSheets[sName]);
+                    EditorGUI.BeginChangeCheck();
+
+                    for (int i = 0; i < targetSO.availableSheets.Count; i++)
+                    {
+                        var sheet = targetSO.availableSheets[i];
+
+                        Rect rowRect = EditorGUILayout.BeginHorizontal();
+                        if (i % 2 == 0) EditorGUI.DrawRect(rowRect, new Color(0, 0, 0, 0.1f));
+
+                        sheet.IsSelected = EditorGUILayout.Toggle(sheet.IsSelected, GUILayout.Width(40));
+
+                        GUI.enabled = sheet.IsSelected;
+                        if (sheet.IsSelected)
+                            sheet.IsGenCode = EditorGUILayout.Toggle(sheet.IsGenCode, GUILayout.Width(40));
+                        else
+                            EditorGUILayout.LabelField("-", EditorStyles.centeredGreyMiniLabel, GUILayout.Width(40));
+                        GUI.enabled = true;
+
+                        GUIStyle nameStyle = new GUIStyle(EditorStyles.label);
+                        if (!sheet.IsSelected) nameStyle.normal.textColor = Color.gray;
+                        EditorGUILayout.LabelField(sheet.SheetName, nameStyle);
+
+                        EditorGUILayout.EndHorizontal();
+                    }
+
+                    if (EditorGUI.EndChangeCheck())
+                    {
+                        EditorUtility.SetDirty(targetSO);
+                    }
+
+                    EditorGUILayout.Space(5);
+                    EditorGUILayout.BeginHorizontal();
+                    if (GUILayout.Button("Import All", EditorStyles.miniButtonLeft)) SetAllImportSheets(true);
+                    if (GUILayout.Button("Import None", EditorStyles.miniButtonMid)) SetAllImportSheets(false);
+                    if (GUILayout.Button("Gen All", EditorStyles.miniButtonMid)) SetAllGenerateCodeSheets(true);
+                    if (GUILayout.Button("Gen None", EditorStyles.miniButtonRight)) SetAllGenerateCodeSheets(false);
+                    EditorGUILayout.EndHorizontal();
+
+                    EditorGUILayout.Space(10);
+
+                    GUI.backgroundColor = new Color(0.4f, 1f, 0.4f); // Light Green
+                    if (GUILayout.Button("📥 IMPORT & SYNC SELECTED", GUILayout.Height(50)))
+                        RunAsyncAction(SyncAndGenerateAsync);
+                    GUI.backgroundColor = Color.white;
                 }
-
-                EditorGUILayout.EndVertical();
-
-                EditorGUILayout.BeginHorizontal();
-                if (GUILayout.Button("Select All")) SetAllSheets(true);
-                if (GUILayout.Button("Deselect All")) SetAllSheets(false);
-                EditorGUILayout.EndHorizontal();
-
-                EditorGUILayout.Space(10);
-
-                GUI.backgroundColor = Color.green;
-                if (GUILayout.Button("📥 IMPORT SELECTED SHEETS", GUILayout.Height(50)))
-                    RunAsyncAction(SyncAndGenerateAsync);
-                GUI.backgroundColor = Color.white;
+                else
+                {
+                    EditorGUILayout.HelpBox("No sheets found. Click 'FETCH ALL SHEETS' to get data.", MessageType.Info);
+                }
             }
-            else
-            {
-                EditorGUILayout.HelpBox("No sheets found. Click 'FIND ALL SHEETS' to fetch data from Google.", MessageType.None);
-            }
-
             EditorGUILayout.EndVertical();
 
+            // --- Footer ---
             EditorGUILayout.Space(20);
-            if (GUILayout.Button("Disconnect / Logout"))
+            GUI.contentColor = Color.gray;
+            if (GUILayout.Button("Logout / Disconnect Google Account", EditorStyles.label))
             {
-                googleSetting.AccessToken = "";
-                googleSetting.RefreshToken = "";
-                EditorUtility.SetDirty(googleSetting);
+                if (EditorUtility.DisplayDialog("Logout", "Do you want to disconnect?", "Yes", "No"))
+                {
+                    googleSetting.AccessToken = "";
+                    googleSetting.RefreshToken = "";
+                    EditorUtility.SetDirty(googleSetting);
+                }
             }
+            GUI.contentColor = Color.white;
         }
 
         private async void RunAsyncAction(Func<Task> action)
@@ -181,9 +213,16 @@ namespace ManoData
             }
         }
 
-        private void SetAllSheets(bool val)
+        private void SetAllImportSheets(bool val)
         {
-            foreach (var key in targetSO.availableSheets) selectedSheets[key] = val;
+            foreach (var s in targetSO.availableSheets) s.IsSelected = val;
+            EditorUtility.SetDirty(targetSO);
+        }
+
+        private void SetAllGenerateCodeSheets(bool val)
+        {
+            foreach (var s in targetSO.availableSheets) s.IsGenCode = val;
+            EditorUtility.SetDirty(targetSO);
         }
 
         // ==========================================
@@ -258,8 +297,12 @@ namespace ManoData
                             string title = sheet["properties"]?["title"]?.ToString();
                             if (!string.IsNullOrEmpty(title) && title != "Welcome" && !title.StartsWith("_"))
                             {
-                                targetSO.availableSheets.Add(title);
-                                if (!selectedSheets.ContainsKey(title)) selectedSheets[title] = true;
+                                var selected = new SelectedSheet
+                                {
+                                    SheetName = title,
+                                    IsSelected = true
+                                };
+                                targetSO.availableSheets.Add(selected);
                             }
                         }
 
@@ -287,15 +330,14 @@ namespace ManoData
 
         private async Task SyncAndGenerateAsync()
         {
-            var sheetsToImport = selectedSheets.Where(x => x.Value).Select(x => x.Key).ToList();
+            var sheetsToImport = targetSO.availableSheets
+                .Where(s => s.IsSelected)
+                .Select(s => s.SheetName)
+                .ToList();
+
             if (sheetsToImport.Count == 0)
             {
                 EditorUtility.DisplayDialog("Warning", "Please select at least one sheet to import.", "OK");
-                return;
-            }
-            if (targetSO == null)
-            {
-                EditorUtility.DisplayDialog("Error", "Please assign Target Data SO.", "OK");
                 return;
             }
 
@@ -314,12 +356,20 @@ namespace ManoData
                     {
                         targetSO.rawJson = www.downloadHandler.text;
                         targetSO.LoadDataFromJSON();
-
                         EditorUtility.SetDirty(targetSO);
                         AssetDatabase.SaveAssets();
 
-                        Debug.Log("[ManoData] Data received. Starting code generation...");
-                        ManoDataCodeGenerator.Generate(targetSO);
+                        // --- เพิ่มส่วนการกรองตรงนี้ ---
+                        // ดึงรายชื่อ Sheet ที่ User ติ๊ก 'IsGenCode' ไว้เท่านั้น
+                        var sheetsToGen = targetSO.availableSheets
+                            .Where(s => s.IsSelected && s.IsGenCode)
+                            .Select(s => s.SheetName)
+                            .ToList();
+
+                        Debug.Log("[ManoData] Data received. Starting code generation for selected sheets...");
+
+                        // ส่งลิสต์รายชื่อ Sheet ที่อนุญาตให้ Gen ไปที่ Generator
+                        ManoDataCodeGenerator.Generate(targetSO, sheetsToGen);
 
                         EditorUtility.DisplayDialog("Mano Sync", "Data Sync and Code Generation successful!", "OK");
                     }

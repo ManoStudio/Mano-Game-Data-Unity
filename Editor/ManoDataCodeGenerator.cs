@@ -9,7 +9,7 @@ namespace ManoData
 {
     public static class ManoDataCodeGenerator
     {
-        public static void Generate(GameDataDocumentSO so)
+        public static void Generate(GameDataDocumentSO so, List<string> filterSheetNames = null)
         {
             if (so == null) return;
 
@@ -26,19 +26,29 @@ namespace ManoData
 
             GenerateAsmdef(outputPath);
 
+            List<TableContent> generatedTables = new List<TableContent>();
+
             foreach (var table in so.document.tables)
             {
+                if (filterSheetNames != null && !filterSheetNames.Contains(table.name))
+                {
+                    continue;
+                }
+
                 string className = SanitizeName(table.name);
                 string code = BuildClassCode(className, table.schema);
                 File.WriteAllText(Path.Combine(outputPath, className + ".cs"), code);
+
+                generatedTables.Add(table);
+
                 Debug.Log($"[ManoData] Generated: {className}.cs");
             }
 
-            string registryCode = BuildRegistryCode(so.document.tables);
+            string registryCode = BuildRegistryCode(generatedTables);
             File.WriteAllText(Path.Combine(outputPath, "ManoDataRegistry.cs"), registryCode);
 
             AssetDatabase.Refresh();
-            EditorUtility.DisplayDialog("ManoData", "Generate Code Successfully!", "OK");
+            Debug.Log("[ManoData] Selective Generate Completed.");
         }
 
         private static void GenerateAsmdef(string path)
@@ -75,7 +85,7 @@ namespace ManoData
             {
                 string type = MapType(col.type);
                 string fieldName = SanitizeName(col.name);
-                sb.AppendLine($"        public {type} {fieldName};");
+                sb.AppendLine($"        public {type} {fieldName} {{ get; private set;}}");
             }
 
             sb.AppendLine("");
@@ -91,9 +101,9 @@ namespace ManoData
                 sb.AppendLine("            {");
 
                 if (type == "int")
-                    sb.AppendLine($"                int.TryParse(rawData[\"{col.name}\"].ToString(), out {fieldName});");
+                    sb.AppendLine($"                {fieldName} = int.Parse(rawData[\"{col.name}\"].ToString());");
                 else if (type == "float")
-                    sb.AppendLine($"                float.TryParse(rawData[\"{col.name}\"].ToString(), out {fieldName});");
+                    sb.AppendLine($"                {fieldName} = float.Parse(rawData[\"{col.name}\"].ToString());");
                 else if (type == "bool")
                     sb.AppendLine($"                {fieldName} = rawData[\"{col.name}\"].ToString().ToLower() == \"true\";");
                 else if (type == "vector2")
@@ -105,8 +115,6 @@ namespace ManoData
                 else if (type.StartsWith("list_"))
                 {
                     string innerType = type.Replace("list_", "");
-                    sb.AppendLine($"            if (rawData.ContainsKey(\"{col.name}\"))");
-                    sb.AppendLine("            {");
                     sb.AppendLine($"                var rawStr = rawData[\"{col.name}\"].ToString();");
                     sb.AppendLine($"                var items = rawStr.Split('|');");
                     sb.AppendLine($"                {fieldName} = new {MapType(type)}();");
@@ -122,7 +130,6 @@ namespace ManoData
                         sb.AppendLine($"                    {fieldName}.Add(s);");
 
                     sb.AppendLine("                }");
-                    sb.AppendLine("            }");
                 }
                 else
                     sb.AppendLine($"                {fieldName} = rawData[\"{col.name}\"].ToString();");
@@ -196,6 +203,15 @@ namespace ManoData
             }
         }
 
-        private static string SanitizeName(string name) => name.Replace(" ", "").Replace("-", "_").Replace("'", "");
+        private static string SanitizeName(string name)
+        {
+            return name.Replace(" ", "")
+                        .Replace("-", "")
+                        .Replace("'", "")
+                        .Replace("\"", "")
+                        .Replace(".", "")
+                        .Replace(",", "")
+                        .Replace("_", "");
+        }
     }
 }
