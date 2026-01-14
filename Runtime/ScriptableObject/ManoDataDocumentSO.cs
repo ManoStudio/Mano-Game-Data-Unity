@@ -161,6 +161,47 @@ namespace Mano.Data
                 Debug.Log("<color=cyan>[ManoData]</color> Preview data restored from rawJson.");
             }
         }
+
+#if UNITY_EDITOR
+        public void EditorWarmup()
+        {
+            if (string.IsNullOrEmpty(rawJson)) return;
+
+            LoadDataFromJSON();
+
+            _objectCache.Clear();
+
+            foreach (var table in document.tables)
+            {
+                string typeName = $"{NameSpaceDocument}.{SanitizeTableName(table.name)}";
+                Type rowType = AppDomain.CurrentDomain.GetAssemblies()
+                    .SelectMany(a => a.GetTypes())
+                    .FirstOrDefault(t => t.FullName == typeName || t.Name == SanitizeTableName(table.name));
+
+                if (rowType != null && typeof(IManoDataRow).IsAssignableFrom(rowType))
+                {
+                    // ใช้ Reflection เรียก PreWarmObject<T>
+                    var method = GetType().GetMethod("PreWarmObject")?.MakeGenericMethod(rowType);
+
+                    foreach (var rowData in table.data)
+                    {
+                        string rowId = rowData.Values.FirstOrDefault()?.ToString();
+                        if (!string.IsNullOrEmpty(rowId))
+                        {
+                            method?.Invoke(this, new object[] { table.name, rowId, rowData });
+                        }
+                    }
+                }
+            }
+            Debug.Log($"<color=cyan>[ManoData]</color> {name} : Editor Warmup Complete.");
+        }
+#endif
+
+        private string SanitizeTableName(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return name;
+            return name.Replace("_", "").Replace(" ", "").Replace("-", "");
+        }
     }
 
     [Serializable]
