@@ -28,16 +28,22 @@ namespace Mano.Data
         public static T GetCachedObject<T>(string rowId) where T : IManoDataRow, new()
         {
             string tableName = typeof(T).Name;
+            string[] possibleIdKeys = { "ID", "id", "Id" };
 
             foreach (var doc in _documents)
             {
-                if (doc.GetTable(tableName) != null)
+                var table = doc.GetTable(tableName);
+                if (table != null)
                 {
                     T result = doc.GetCachedObject<T>(tableName, rowId);
                     if (result != null) return result;
 
-                    var table = doc.GetTable(tableName);
-                    var rowData = table.data.FirstOrDefault(r => r["ID"].ToString() == rowId);
+                    var rowData = table.data.FirstOrDefault(r =>
+                    {
+                        var actualKey = possibleIdKeys.FirstOrDefault(key => r.ContainsKey(key));
+
+                        return actualKey != null && r[actualKey].ToString() == rowId;
+                    });
 
                     if (rowData != null)
                     {
@@ -47,7 +53,7 @@ namespace Mano.Data
                 }
             }
 
-            Debug.LogWarning($"[GameData] Data not found for ID: {rowId} in any Document.");
+            Debug.LogWarning($"[ManoData] Data not found for ID: {rowId} in any Document.");
             return default;
         }
     }
