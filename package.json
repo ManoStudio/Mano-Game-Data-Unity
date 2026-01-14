@@ -7,5 +7,8 @@
     "author": {
         "name": "Mano Studio",
         "url": "https://github.com/ManoStudio/Mano-Game-Data-Unity.git"
+    },
+    "dependencies": {
+        "com.unity.nuget.newtonsoft-json": "3.0.2"
     }
 }
