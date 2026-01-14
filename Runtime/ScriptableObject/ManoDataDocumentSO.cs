@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System;
 using System.Linq;
 using UnityEngine.Scripting;
+using Newtonsoft.Json;
 
 namespace Mano.Data
 {
@@ -11,23 +12,34 @@ namespace Mano.Data
     public class ManoDataDocumentSO : ScriptableObject
     {
         [Header("Document Data")]
-        [RequiredMember] public string NameSpaceDocument = default!;
+        public string NameSpaceDocument = "Mano.Data.Generated";
         public string generatedCodePath = "Assets/Scripts/GeneratedData/";
 
         [Header("Sync Status")]
-        [ManoOnly] public string lastEdit;
-        [ManoOnly][TextArea(5, 20)] public string rawJson;
+        public string lastEdit;
+        [TextArea(5, 20)] public string rawJson;
 
-        [ManoOnly] public List<SelectedSheet> availableSheets = new List<SelectedSheet>();
-        [ManoOnly] public List<SelectedSheet> generatedSheets = new List<SelectedSheet>();
+        public List<SelectedSheet> availableSheets = new List<SelectedSheet>();
+        public List<SelectedSheet> generatedSheets = new List<SelectedSheet>();
 
-        [System.NonSerialized]
+        [SerializeField]
         public ManoDataDocument document = new ManoDataDocument();
 
         public bool HasDataToPreview => document?.tables != null && document.tables.Count > 0;
 
         private Dictionary<string, TableContent> _tableCache = new Dictionary<string, TableContent>();
+
+        // _objectCache จะไม่ถูก Serialize เพราะเก็บ instance ของ Class ที่เรา gen
         private Dictionary<string, Dictionary<string, object>> _objectCache = new Dictionary<string, Dictionary<string, object>>();
+
+        // --- ISerializationCallbackReceiver ---
+        public void OnBeforeSerialize() { } // ไม่ต้องทำอะไร เพราะเราเก็บเป็น List<RowData> ใน document อยู่แล้ว
+
+        public void OnAfterDeserialize()
+        {
+            // เมื่อ Unity โหลดไฟล์ SO นี้ขึ้นมา ให้สร้าง Index ใหม่ทันที
+            BuildIndex();
+        }
 
         public void LoadDataFromJSON()
         {
@@ -59,6 +71,9 @@ namespace Mano.Data
                 if (!document.groups.Contains("Default")) document.groups.Add("Default");
 
                 BuildIndex();
+#if UNITY_EDITOR
+                UnityEditor.EditorUtility.SetDirty(this);
+#endif
                 Debug.Log("<color=green>[ManoData]</color> Tables Loaded: " + document.tables.Count);
             }
             catch (Exception e)
@@ -75,45 +90,58 @@ namespace Mano.Data
             var names = values[0];
             var types = values[1];
 
+            for (int col = 0; col < names.Count(); col++)
+            {
+                table.schema.Add(new ColumnSchema
+                {
+                    name = names[col].ToString(),
+                    type = types.Count() > col ? types[col].ToString() : "string"
+                });
+            }
+
             string lastId = "";
             Dictionary<string, object> currentRow = null;
             string[] lastValues = new string[names.Count()];
 
-            for (int col = 0; col < names.Count(); col++)
-            {
-                table.schema.Add(new ColumnSchema { name = names[col].ToString(), type = types.Count() > col ? types[col].ToString() : "string" });
-            }
-
             for (int row = 2; row < values.Count(); row++)
             {
-                var rowData = values[row] as JArray;
-                if (rowData == null || rowData.Count == 0) continue;
+                var rowDataJson = values[row] as JArray;
+                if (rowDataJson == null || rowDataJson.Count == 0) continue;
 
-                string currentId = rowData[0]?.ToString();
+                string currentId = rowDataJson[0]?.ToString();
 
                 if (!string.IsNullOrEmpty(currentId) && currentId != lastId)
                 {
                     currentRow = new Dictionary<string, object>();
                     for (int col = 0; col < table.schema.Count; col++)
                     {
-                        string val = col < rowData.Count ? rowData[col].ToString() : "";
+                        string val = col < rowDataJson.Count ? rowDataJson[col].ToString() : "";
                         currentRow[table.schema[col].name] = val;
                         lastValues[col] = val;
                     }
-                    table.data.Add(currentRow);
+
+                    // แปลง Dictionary เป็น RowData เพื่อให้ Unity เซฟได้
+                    table.rows.Add(new RowData
+                    {
+                        id = currentId,
+                        jsonValues = JsonConvert.SerializeObject(currentRow)
+                    });
                     lastId = currentId;
                 }
                 else if (currentRow != null)
                 {
+                    // กรณี Row Merge (ID ซ้ำ)
                     for (int col = 0; col < table.schema.Count; col++)
                     {
-                        string val = col < rowData.Count ? rowData[col].ToString() : "";
+                        string val = col < rowDataJson.Count ? rowDataJson[col].ToString() : "";
                         if (string.IsNullOrEmpty(val)) val = lastValues[col];
                         else lastValues[col] = val;
 
                         string colName = table.schema[col].name;
                         currentRow[colName] = currentRow[colName].ToString() + "|" + val;
                     }
+                    // อัปเดต JSON string ของ Row ล่าสุด
+                    table.rows.Last().jsonValues = JsonConvert.SerializeObject(currentRow);
                 }
             }
             document.tables.Add(table);
@@ -139,10 +167,24 @@ namespace Mano.Data
             _objectCache[tableName][rowId] = instance;
         }
 
-        public T GetCachedObject<T>(string tableName, string rowId)
+        public T GetCachedObject<T>(string tableName, string rowId) where T : IManoDataRow, new()
         {
+            // 1. ลองหาใน Memory Cache ก่อน (เร็วสุด)
             if (_objectCache.TryGetValue(tableName, out var table) && table.TryGetValue(rowId, out var obj))
                 return (T)obj;
+
+            // 2. ถ้าไม่มีใน Cache แต่มีใน document (ที่เพิ่งโหลดมาจากไฟล์)
+            var tableContent = GetTable(tableName);
+            if (tableContent != null)
+            {
+                var row = tableContent.rows.FirstOrDefault(r => r.id == rowId);
+                if (row != null)
+                {
+                    var dict = row.ToDictionary();
+                    PreWarmObject<T>(tableName, rowId, dict);
+                    return (T)_objectCache[tableName][rowId];
+                }
+            }
             return default;
         }
 
@@ -165,35 +207,43 @@ namespace Mano.Data
 #if UNITY_EDITOR
         public void EditorWarmup()
         {
-            if (string.IsNullOrEmpty(rawJson)) return;
-
-            LoadDataFromJSON();
+            // เปลี่ยนจากเช็ค rawJson เป็นเช็ค document.tables เพราะตอนนี้เราเซฟลง Asset แล้ว
+            if (document == null || document.tables.Count == 0)
+            {
+                // ถ้าใน document ว่าง แต่มี rawJson ให้ลองโหลดใหม่ก่อน
+                if (!string.IsNullOrEmpty(rawJson)) LoadDataFromJSON();
+                else return;
+            }
 
             _objectCache.Clear();
 
             foreach (var table in document.tables)
             {
-                string typeName = $"{NameSpaceDocument}.{SanitizeTableName(table.name)}";
+                string sanitizedName = SanitizeTableName(table.name);
+                string typeName = $"{NameSpaceDocument}.{sanitizedName}";
+
                 Type rowType = AppDomain.CurrentDomain.GetAssemblies()
                     .SelectMany(a => a.GetTypes())
-                    .FirstOrDefault(t => t.FullName == typeName || t.Name == SanitizeTableName(table.name));
+                    .FirstOrDefault(t => t.FullName == typeName || t.Name == sanitizedName);
 
                 if (rowType != null && typeof(IManoDataRow).IsAssignableFrom(rowType))
                 {
-                    // ใช้ Reflection เรียก PreWarmObject<T>
                     var method = GetType().GetMethod("PreWarmObject")?.MakeGenericMethod(rowType);
 
-                    foreach (var rowData in table.data)
+                    foreach (var row in table.rows)
                     {
-                        string rowId = rowData.Values.FirstOrDefault()?.ToString();
-                        if (!string.IsNullOrEmpty(rowId))
+                        if (string.IsNullOrEmpty(row.id)) continue;
+
+                        var dictData = row.ToDictionary();
+
+                        if (dictData != null)
                         {
-                            method?.Invoke(this, new object[] { table.name, rowId, rowData });
+                            method?.Invoke(this, new object[] { table.name, row.id, dictData });
                         }
                     }
                 }
             }
-            Debug.Log($"<color=cyan>[ManoData]</color> {name} : Editor Warmup Complete.");
+            Debug.Log($"<color=cyan>[ManoData]</color> {name} : Editor Warmup Complete (Serialized Mode).");
         }
 #endif
 

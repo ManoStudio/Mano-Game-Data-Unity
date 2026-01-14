@@ -29,13 +29,11 @@ namespace Mano.Data
 
         public static T GetCachedObject<T>(string rowId) where T : IManoDataRow, new()
         {
-            string targetName = typeof(T).Name;
-
-            string[] possibleIdKeys = { "ID", "id", "Id" };
+            string targetClassName = typeof(T).Name;
 
             foreach (var doc in _documents)
             {
-                var table = doc.document.tables.FirstOrDefault(t => SanitizeTableName(t.name) == targetName);
+                var table = doc.document.tables.FirstOrDefault(t => SanitizeTableName(t.name) == targetClassName);
 
                 if (table != null)
                 {
@@ -44,21 +42,20 @@ namespace Mano.Data
                     T result = doc.GetCachedObject<T>(originalTableName, rowId);
                     if (result != null) return result;
 
-                    var rowData = table.data.FirstOrDefault(r =>
-                    {
-                        var actualKey = possibleIdKeys.FirstOrDefault(key => r.ContainsKey(key));
-                        return actualKey != null && r[actualKey].ToString() == rowId;
-                    });
+                    var rowEntry = table.rows.FirstOrDefault(r => r.id == rowId);
 
-                    if (rowData != null)
+                    if (rowEntry != null)
                     {
-                        doc.PreWarmObject<T>(originalTableName, rowId, rowData);
+                        var dictData = rowEntry.ToDictionary();
+
+                        doc.PreWarmObject<T>(originalTableName, rowId, dictData);
+
                         return doc.GetCachedObject<T>(originalTableName, rowId);
                     }
                 }
             }
 
-            Debug.LogWarning($"[ManoData] Data not found for ID: {rowId} in any Document (Target Class: {targetName})");
+            Debug.LogWarning($"<color=yellow>[ManoData]</color> Data not found for ID: {rowId} in any Document (Target Class: {targetClassName})");
             return default;
         }
 

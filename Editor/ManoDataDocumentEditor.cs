@@ -9,8 +9,11 @@ namespace Mano.Data.Editor
     public class ManoDataDocumentEditor : UnityEditor.Editor
     {
         private Dictionary<string, bool> tableFoldouts = new Dictionary<string, bool>();
-        // เก็บตำแหน่ง Scroll แยกตามชื่อตาราง
         private Dictionary<string, Vector2> tableScrollPositions = new Dictionary<string, Vector2>();
+
+        // Cache ข้อมูล Dictionary สำหรับใช้วาดใน Editor เท่านั้น เพื่อความลื่นไหล
+        private Dictionary<string, List<Dictionary<string, object>>> _editorDisplayCache = new Dictionary<string, List<Dictionary<string, object>>>();
+
         private const float COLUMN_WIDTH = 120f;
 
         public override void OnInspectorGUI()
@@ -20,17 +23,17 @@ namespace Mano.Data.Editor
             ManoDataDocumentSO so = (ManoDataDocumentSO)target;
 
             EditorGUILayout.Space(15);
-            GUILayout.Label("📊 DATA EXPLORER (RAW DATA)", EditorStyles.boldLabel);
+            GUILayout.Label("📊 DATA EXPLORER (SERIALIZED)", EditorStyles.boldLabel);
 
-            // เช็คว่าข้อมูลหายไปหรือไม่ (เช่น หลังรีโหลดโค้ด)
             if (!so.HasDataToPreview)
             {
                 if (!string.IsNullOrEmpty(so.rawJson))
                 {
-                    EditorGUILayout.HelpBox("Preview data is cleared from memory. Click 'Restore' to see it again without re-importing.", MessageType.Warning);
-                    if (GUILayout.Button("📂 Restore Preview from JSON", GUILayout.Height(30)))
+                    EditorGUILayout.HelpBox("Data is available in Raw JSON but not yet parsed into Serialized Rows.", MessageType.Warning);
+                    if (GUILayout.Button("📂 Parse JSON to Serialized Rows", GUILayout.Height(30)))
                     {
-                        so.RestoreFromRawJson();
+                        so.LoadDataFromJSON();
+                        _editorDisplayCache.Clear();
                     }
                 }
                 else
@@ -48,13 +51,17 @@ namespace Mano.Data.Editor
                 EditorGUILayout.BeginVertical(EditorStyles.helpBox);
 
                 tableFoldouts[table.name] = EditorGUILayout.Foldout(tableFoldouts[table.name],
-                    $"Table: {table.name} ({table.data.Count} Rows)", true, EditorStyles.foldoutHeader);
+                    $"Table: {table.name} ({table.rows.Count} Rows)", true, EditorStyles.foldoutHeader);
 
                 if (tableFoldouts[table.name])
                 {
-                    // ส่งตำแหน่ง Scroll เฉพาะของตารางนี้เข้าไป
+                    if (!_editorDisplayCache.ContainsKey(table.name) || _editorDisplayCache[table.name].Count != table.rows.Count)
+                    {
+                        _editorDisplayCache[table.name] = table.GetRuntimeData();
+                    }
+
                     Vector2 currentPos = tableScrollPositions[table.name];
-                    tableScrollPositions[table.name] = DrawFixedTableGrid(table, currentPos);
+                    tableScrollPositions[table.name] = DrawFixedTableGrid(table, _editorDisplayCache[table.name], currentPos);
                 }
 
                 EditorGUILayout.EndVertical();
@@ -64,14 +71,14 @@ namespace Mano.Data.Editor
             if (Application.isPlaying) Repaint();
         }
 
-        private Vector2 DrawFixedTableGrid(TableContent table, Vector2 scrollPos)
+        private Vector2 DrawFixedTableGrid(TableContent table, List<Dictionary<string, object>> displayData, Vector2 scrollPos)
         {
             if (table.schema == null || table.schema.Count == 0) return scrollPos;
 
             float totalWidth = table.schema.Count * COLUMN_WIDTH;
 
-            // แยก ScrollView ของตารางนี้
-            Vector2 newScrollPos = EditorGUILayout.BeginScrollView(scrollPos, GUILayout.Height(Mathf.Min(table.data.Count * 22 + 60, 300)));
+            float viewHeight = Mathf.Min(displayData.Count * 22 + 45, 300);
+            Vector2 newScrollPos = EditorGUILayout.BeginScrollView(scrollPos, GUILayout.Height(viewHeight));
 
             EditorGUILayout.BeginVertical(GUILayout.Width(totalWidth));
 
@@ -99,9 +106,9 @@ namespace Mano.Data.Editor
                 fontSize = 11
             };
 
-            for (int i = 0; i < table.data.Count; i++)
+            for (int i = 0; i < displayData.Count; i++)
             {
-                var row = table.data[i];
+                var row = displayData[i];
                 Rect rowRect = EditorGUILayout.BeginHorizontal(GUILayout.Height(20));
 
                 if (i % 2 == 0)
@@ -115,7 +122,7 @@ namespace Mano.Data.Editor
                 }
                 EditorGUILayout.EndHorizontal();
 
-                Handles.color = new Color(0.1f, 0.1f, 0.1f, 0.5f);
+                Handles.color = new Color(0.1f, 0.1f, 0.1f, 0.3f);
                 Handles.DrawLine(new Vector3(rowRect.x, rowRect.yMax), new Vector3(rowRect.x + totalWidth, rowRect.yMax));
             }
 

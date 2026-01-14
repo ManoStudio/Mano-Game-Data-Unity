@@ -151,6 +151,7 @@ namespace Mano.Data.Editor
             sb.AppendLine("using UnityEngine;");
             sb.AppendLine("using System.Linq;");
             sb.AppendLine("using System.Collections.Generic;");
+            sb.AppendLine("using Mano.Data;");
             sb.AppendLine("");
             sb.AppendLine($"namespace {nameSpaceData}");
             sb.AppendLine("{");
@@ -159,26 +160,32 @@ namespace Mano.Data.Editor
             sb.AppendLine("        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]");
             sb.AppendLine("        public static void Register()");
             sb.AppendLine("        {");
-            sb.AppendLine("            ManoData.OnPreWarm += (so) =>");
-            sb.AppendLine("            {");
-
+            sb.AppendLine("            ManoData.OnPreWarm += (so) => WarmupAll(so);");
+            sb.AppendLine("        }");
+            sb.AppendLine("");
+            sb.AppendLine("        public static void WarmupAll(ManoDataDocumentSO so)");
+            sb.AppendLine("        {");
             foreach (var table in tables)
             {
                 string className = SanitizeName(table.name);
-                sb.AppendLine($"                PreWarmTable<{className}>(so, \"{table.name}\");");
+                sb.AppendLine($"            PreWarmTable<{className}>(so, \"{table.name}\");");
             }
-
-            sb.AppendLine("            };");
             sb.AppendLine("        }");
             sb.AppendLine("");
             sb.AppendLine("        private static void PreWarmTable<T>(ManoDataDocumentSO so, string tableName) where T : IManoDataRow, new()");
             sb.AppendLine("        {");
             sb.AppendLine("            var table = so.GetTable(tableName);");
             sb.AppendLine("            if (table == null) return;");
-            sb.AppendLine("            foreach (var row in table.data)");
+            sb.AppendLine("");
+            sb.AppendLine("            foreach (var rowEntry in table.rows)");
             sb.AppendLine("            {");
-            sb.AppendLine("                var id = row.Values.FirstOrDefault()?.ToString();");
-            sb.AppendLine("                if (!string.IsNullOrEmpty(id)) so.PreWarmObject<T>(tableName, id, row);");
+            sb.AppendLine("                if (string.IsNullOrEmpty(rowEntry.id)) continue;");
+            sb.AppendLine("");
+            sb.AppendLine("                var dict = rowEntry.ToDictionary();");
+            sb.AppendLine("                if (dict != null) ");
+            sb.AppendLine("                {");
+            sb.AppendLine("                    so.PreWarmObject<T>(tableName, rowEntry.id, dict);");
+            sb.AppendLine("                }");
             sb.AppendLine("            }");
             sb.AppendLine("        }");
             sb.AppendLine("    }");

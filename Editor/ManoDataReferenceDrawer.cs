@@ -17,6 +17,7 @@ namespace Mano.Data.Editor
             SerializedProperty tableProp = property.FindPropertyRelative("tableName");
             SerializedProperty idProp = property.FindPropertyRelative("rowId");
 
+
             ManoDataDocumentSO dataSO = dataSOProp.objectReferenceValue as ManoDataDocumentSO;
 
             if (dataSO == null)
@@ -27,7 +28,9 @@ namespace Mano.Data.Editor
             }
 
             if (dataSO.document == null || dataSO.document.tables.Count == 0)
-                dataSO.LoadDataFromJSON();
+            {
+                dataSO.RestoreFromRawJson();
+            }
 
             Rect contentRect = EditorGUI.PrefixLabel(position, label);
             float w = contentRect.width / 3;
@@ -36,30 +39,28 @@ namespace Mano.Data.Editor
             if (groups.Length == 0) groups = new[] { "Default" };
 
             int gIdx = System.Array.IndexOf(groups, groupProp.stringValue);
-            if (gIdx == -1)
-            {
-                gIdx = 0;
-                groupProp.stringValue = groups[0];
-            }
+            if (gIdx == -1) gIdx = 0;
+
             gIdx = EditorGUI.Popup(new Rect(contentRect.x, contentRect.y, w - 2, contentRect.height), gIdx, groups);
             groupProp.stringValue = groups[gIdx];
 
-            var tablesInGroup = dataSO.document.tables.Where(t => t.group == groups[gIdx]).Select(t => t.name).ToArray();
+            var tablesInGroup = dataSO.document.tables
+                .Where(t => t.group == groups[gIdx])
+                .Select(t => t.name).ToArray();
+
             if (tablesInGroup.Length == 0) tablesInGroup = new[] { "No Tables" };
 
             int tIdx = System.Array.IndexOf(tablesInGroup, tableProp.stringValue);
-            if (tIdx == -1)
-            {
-                tIdx = 0;
-                tableProp.stringValue = tablesInGroup[0];
-            }
+            if (tIdx == -1) tIdx = 0;
+
             tIdx = EditorGUI.Popup(new Rect(contentRect.x + w, contentRect.y, w - 2, contentRect.height), tIdx, tablesInGroup);
             tableProp.stringValue = tablesInGroup[tIdx];
 
             var currentTable = dataSO.document.tables.FirstOrDefault(t => t.name == tableProp.stringValue);
-            if (currentTable != null && currentTable.data.Count > 0)
+
+            if (currentTable != null && currentTable.rows.Count > 0)
             {
-                string[] ids = currentTable.data.Select(d => d.Values.FirstOrDefault()?.ToString() ?? "N/A").ToArray();
+                string[] ids = currentTable.rows.Select(r => r.id).ToArray();
                 int iIdx = System.Array.IndexOf(ids, idProp.stringValue);
 
                 if (iIdx == -1)
@@ -69,7 +70,7 @@ namespace Mano.Data.Editor
                 }
 
                 EditorGUI.BeginChangeCheck();
-                iIdx = EditorGUI.Popup(new Rect(contentRect.x + w * 2, contentRect.y, w, contentRect.height), iIdx, ids);
+                iIdx = EditorGUI.Popup(new Rect(contentRect.x + (w * 2), contentRect.y, w, contentRect.height), iIdx, ids);
                 if (EditorGUI.EndChangeCheck())
                 {
                     idProp.stringValue = ids[iIdx];
@@ -77,7 +78,7 @@ namespace Mano.Data.Editor
             }
             else
             {
-                EditorGUI.LabelField(new Rect(contentRect.x + w * 2, contentRect.y, w, contentRect.height), "Empty Table");
+                EditorGUI.LabelField(new Rect(contentRect.x + (w * 2), contentRect.y, w, contentRect.height), "Empty/No Data");
                 idProp.stringValue = "";
             }
 
