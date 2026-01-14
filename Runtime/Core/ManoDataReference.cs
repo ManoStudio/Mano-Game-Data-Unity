@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace ManoData
+namespace Mano.Data
 {
     public interface IManoDataRow
     {
@@ -11,7 +11,7 @@ namespace ManoData
     [Serializable]
     public class ManoDataReference
     {
-        public GameDataDocumentSO gameDataDocumentSO;
+        public ManoDataDocumentSO gameDataDocumentSO;
         public string groupName;
         public string tableName;
         public string rowId;
@@ -21,14 +21,14 @@ namespace ManoData
             ValidateInit();
 
             if (string.IsNullOrEmpty(rowId)) return default;
-            return GameData.GetCachedObject<T>(rowId);
+            return ManoData.GetCachedObject<T>(rowId);
         }
 
         private void ValidateInit()
         {
             if (gameDataDocumentSO != null)
             {
-                GameData.Init(gameDataDocumentSO);
+                ManoData.Init(gameDataDocumentSO);
             }
         }
 

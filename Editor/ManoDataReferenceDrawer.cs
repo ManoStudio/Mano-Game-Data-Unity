@@ -1,8 +1,9 @@
 using UnityEngine;
 using UnityEditor;
 using System.Linq;
+using Mano.Data;
 
-namespace ManoData
+namespace Mano.Data.Editor
 {
     [CustomPropertyDrawer(typeof(ManoDataReference))]
     public class ManoDataReferenceDrawer : PropertyDrawer
@@ -16,7 +17,7 @@ namespace ManoData
             SerializedProperty tableProp = property.FindPropertyRelative("tableName");
             SerializedProperty idProp = property.FindPropertyRelative("rowId");
 
-            GameDataDocumentSO dataSO = dataSOProp.objectReferenceValue as GameDataDocumentSO;
+            ManoDataDocumentSO dataSO = dataSOProp.objectReferenceValue as ManoDataDocumentSO;
 
             if (dataSO == null)
             {

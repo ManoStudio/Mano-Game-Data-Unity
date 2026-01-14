@@ -6,10 +6,10 @@ using System;
 using System.Linq;
 using UnityEngine.Scripting;
 
-namespace ManoData
+namespace Mano.Data
 {
     [CreateAssetMenu(fileName = "GameDataDocument", menuName = "ManoData/Document")]
-    public class GameDataDocumentSO : ScriptableObject
+    public class ManoDataDocumentSO : ScriptableObject
     {
         [Header("Document Data")]
         [RequiredMember] public string NameSpaceDocument = default!;
@@ -23,7 +23,7 @@ namespace ManoData
         [ManoOnly] public List<SelectedSheet> generatedSheets = new List<SelectedSheet>();
 
         [System.NonSerialized]
-        public GameDataDocument document = new GameDataDocument();
+        public ManoDataDocument document = new ManoDataDocument();
 
         private Dictionary<string, TableContent> _tableCache = new Dictionary<string, TableContent>();
         private Dictionary<string, Dictionary<string, object>> _objectCache = new Dictionary<string, Dictionary<string, object>>();
@@ -35,7 +35,7 @@ namespace ManoData
             {
                 JObject googleData = JObject.Parse(rawJson);
 
-                if (document == null) document = new GameDataDocument();
+                if (document == null) document = new ManoDataDocument();
                 document.tables.Clear();
                 document.groups.Clear();
 

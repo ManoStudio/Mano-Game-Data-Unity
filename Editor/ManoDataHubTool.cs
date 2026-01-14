@@ -8,13 +8,13 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.Networking;
 
-namespace ManoData
+namespace Mano.Data.Editor
 {
     public class ManoDataHubTool : EditorWindow
     {
         private const float TOOL_VERSION = 0.1f;
         public GoogleSettingSO googleSetting;
-        public GameDataDocumentSO targetSO;
+        public ManoDataDocumentSO targetSO;
 
         private string authCode = "";
         private bool isWorking = false;
@@ -52,7 +52,7 @@ namespace ManoData
         {
             GUILayout.Label("🔐 MANO DATA HUB (PRO)", EditorStyles.boldLabel);
             googleSetting = (GoogleSettingSO)EditorGUILayout.ObjectField("Setting SO", googleSetting, typeof(GoogleSettingSO), false);
-            targetSO = (GameDataDocumentSO)EditorGUILayout.ObjectField("Target Data SO", targetSO, typeof(GameDataDocumentSO), false);
+            targetSO = (ManoDataDocumentSO)EditorGUILayout.ObjectField("Target Data SO", targetSO, typeof(ManoDataDocumentSO), false);
 
             EditorGUILayout.Space(10);
 

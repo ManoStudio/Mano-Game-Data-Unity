@@ -1,7 +1,7 @@
 using UnityEditor;
 using UnityEngine;
 
-namespace ManoData
+namespace Mano.Editor
 {
     [CustomPropertyDrawer(typeof(ManoOnlyAttribute))]
     public class ManoOnlyDrawer : PropertyDrawer

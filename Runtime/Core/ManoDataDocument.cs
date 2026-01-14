@@ -1,10 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace ManoData
+namespace Mano.Data
 {
     [Serializable]
-    public class GameDataDocument
+    public class ManoDataDocument
     {
         public List<TableContent> tables = new List<TableContent>();
         public List<string> groups = new List<string>();

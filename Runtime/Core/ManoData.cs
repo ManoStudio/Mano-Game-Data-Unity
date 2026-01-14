@@ -2,18 +2,18 @@
 using System.Linq;
 using UnityEngine;
 
-namespace ManoData
+namespace Mano.Data
 {
-    public static class GameData
+    public static class ManoData
     {
-        private static List<GameDataDocumentSO> _documents = new List<GameDataDocumentSO>();
-        public static System.Action<GameDataDocumentSO> OnPreWarm;
+        private static List<ManoDataDocumentSO> _documents = new List<ManoDataDocumentSO>();
+        public static System.Action<ManoDataDocumentSO> OnPreWarm;
 
         /// <summary>
         /// Initialize GameData with the provided GameDataDocumentSO.
         /// </summary>
         /// <param name="docs"></param>
-        public static void Init(params GameDataDocumentSO[] docs)
+        public static void Init(params ManoDataDocumentSO[] docs)
         {
             _documents.Clear();
             _documents.AddRange(docs);

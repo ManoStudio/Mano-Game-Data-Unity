@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace ManoData
+namespace Mano
 {
     public static class ManoDataExtensions
     {

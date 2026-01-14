@@ -5,11 +5,11 @@ using System.Text;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace ManoData
+namespace Mano.Data.Editor
 {
     public static class ManoDataCodeGenerator
     {
-        public static void Generate(GameDataDocumentSO so, List<string> filterSheetNames = null)
+        public static void Generate(ManoDataDocumentSO so, List<string> filterSheetNames = null)
         {
             if (so == null) return;
 
@@ -22,7 +22,7 @@ namespace ManoData
             }
 
             string outputPath = string.IsNullOrEmpty(so.generatedCodePath) ? "Assets/Scripts/GeneratedData/" : so.generatedCodePath;
-            string ns = string.IsNullOrEmpty(so.NameSpaceDocument) ? "ManoData.Generated" : $"ManoData.{so.NameSpaceDocument}";
+            string ns = string.IsNullOrEmpty(so.NameSpaceDocument) ? "Mano.Data.Generated" : $"Mano.Data.{so.NameSpaceDocument}";
 
             if (!Directory.Exists(outputPath)) Directory.CreateDirectory(outputPath);
 
@@ -159,7 +159,7 @@ namespace ManoData
             sb.AppendLine("        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]");
             sb.AppendLine("        public static void Register()");
             sb.AppendLine("        {");
-            sb.AppendLine("            GameData.OnPreWarm += (so) =>");
+            sb.AppendLine("            ManoData.OnPreWarm += (so) =>");
             sb.AppendLine("            {");
 
             foreach (var table in tables)
@@ -171,7 +171,7 @@ namespace ManoData
             sb.AppendLine("            };");
             sb.AppendLine("        }");
             sb.AppendLine("");
-            sb.AppendLine("        private static void PreWarmTable<T>(GameDataDocumentSO so, string tableName) where T : IManoDataRow, new()");
+            sb.AppendLine("        private static void PreWarmTable<T>(ManoDataDocumentSO so, string tableName) where T : IManoDataRow, new()");
             sb.AppendLine("        {");
             sb.AppendLine("            var table = so.GetTable(tableName);");
             sb.AppendLine("            if (table == null) return;");

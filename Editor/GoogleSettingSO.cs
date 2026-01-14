@@ -1,7 +1,7 @@
 using System;
 using UnityEngine;
 
-namespace ManoData
+namespace Mano.Data
 {
     [CreateAssetMenu(fileName = "GoogleSettingSO", menuName = "ManoData/GoogleSetting")]
     public class GoogleSettingSO : ScriptableObject

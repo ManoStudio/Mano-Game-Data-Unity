@@ -1,5 +1,5 @@
 {
-    "name": "ManoData.Editor",
+    "name": "Mano.Data.Editor",
     "rootNamespace": "",
     "references": [
         "GUID:b7410135017855942a3a8bb3672b84f7",
