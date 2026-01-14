@@ -1,6 +1,5 @@
 ﻿using UnityEngine;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq; // เพิ่มตัวนี้เข้ามา
+using Newtonsoft.Json.Linq;
 using System.Collections.Generic;
 using System;
 using System.Linq;
@@ -24,6 +23,8 @@ namespace Mano.Data
 
         [System.NonSerialized]
         public ManoDataDocument document = new ManoDataDocument();
+
+        public bool HasDataToPreview => document?.tables != null && document.tables.Count > 0;
 
         private Dictionary<string, TableContent> _tableCache = new Dictionary<string, TableContent>();
         private Dictionary<string, Dictionary<string, object>> _objectCache = new Dictionary<string, Dictionary<string, object>>();
@@ -90,14 +91,12 @@ namespace Mano.Data
 
                 string currentId = rowData[0]?.ToString();
 
-                // ถ้าเจอ ID ใหม่ หรือ ID เดิมแต่ต้องการสร้าง Row ใหม่ (กรณีไม่ Merge)
                 if (!string.IsNullOrEmpty(currentId) && currentId != lastId)
                 {
                     currentRow = new Dictionary<string, object>();
                     for (int col = 0; col < table.schema.Count; col++)
                     {
                         string val = col < rowData.Count ? rowData[col].ToString() : "";
-                        // เก็บเป็น String ธรรมดาไว้ก่อน (ถ้ามีหลายบรรทัดจะใช้ | ขั้น)
                         currentRow[table.schema[col].name] = val;
                         lastValues[col] = val;
                     }
@@ -106,7 +105,6 @@ namespace Mano.Data
                 }
                 else if (currentRow != null)
                 {
-                    // กรณี ID ซ้ำหรือ Merge Cell: ให้เอาข้อมูลคอลัมน์อื่นมาต่อท้ายด้วยเครื่องหมาย |
                     for (int col = 0; col < table.schema.Count; col++)
                     {
                         string val = col < rowData.Count ? rowData[col].ToString() : "";
@@ -114,7 +112,6 @@ namespace Mano.Data
                         else lastValues[col] = val;
 
                         string colName = table.schema[col].name;
-                        // ต่อ String เข้าไปด้วย Pipe | เพื่อให้ตอน Gen Code เอาไป Split ได้
                         currentRow[colName] = currentRow[colName].ToString() + "|" + val;
                     }
                 }
@@ -154,6 +151,15 @@ namespace Mano.Data
             if (_tableCache.Count == 0) BuildIndex();
             _tableCache.TryGetValue(tableName, out TableContent table);
             return table;
+        }
+
+        public void RestoreFromRawJson()
+        {
+            if (!string.IsNullOrEmpty(rawJson))
+            {
+                LoadDataFromJSON();
+                Debug.Log("<color=cyan>[ManoData]</color> Preview data restored from rawJson.");
+            }
         }
     }
 

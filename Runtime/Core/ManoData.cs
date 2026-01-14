@@ -10,7 +10,7 @@ namespace Mano.Data
         public static System.Action<ManoDataDocumentSO> OnPreWarm;
 
         /// <summary>
-        /// Initialize GameData with the provided GameDataDocumentSO.
+        /// Initialize ManoData with the provided ManoDataDocumentSO.
         /// </summary>
         /// <param name="docs"></param>
         public static void Init(params ManoDataDocumentSO[] docs)
@@ -23,38 +23,49 @@ namespace Mano.Data
                 doc.LoadDataFromJSON();
                 OnPreWarm?.Invoke(doc);
             }
+
+            Debug.Log($"[ManoData] Initialized with {_documents.Count} Document(s).");
         }
 
         public static T GetCachedObject<T>(string rowId) where T : IManoDataRow, new()
         {
-            string tableName = typeof(T).Name;
+            string targetName = typeof(T).Name;
+
             string[] possibleIdKeys = { "ID", "id", "Id" };
 
             foreach (var doc in _documents)
             {
-                var table = doc.GetTable(tableName);
+                var table = doc.document.tables.FirstOrDefault(t => SanitizeTableName(t.name) == targetName);
+
                 if (table != null)
                 {
-                    T result = doc.GetCachedObject<T>(tableName, rowId);
+                    string originalTableName = table.name;
+
+                    T result = doc.GetCachedObject<T>(originalTableName, rowId);
                     if (result != null) return result;
 
                     var rowData = table.data.FirstOrDefault(r =>
                     {
                         var actualKey = possibleIdKeys.FirstOrDefault(key => r.ContainsKey(key));
-
                         return actualKey != null && r[actualKey].ToString() == rowId;
                     });
 
                     if (rowData != null)
                     {
-                        doc.PreWarmObject<T>(tableName, rowId, rowData);
-                        return doc.GetCachedObject<T>(tableName, rowId);
+                        doc.PreWarmObject<T>(originalTableName, rowId, rowData);
+                        return doc.GetCachedObject<T>(originalTableName, rowId);
                     }
                 }
             }
 
-            Debug.LogWarning($"[ManoData] Data not found for ID: {rowId} in any Document.");
+            Debug.LogWarning($"[ManoData] Data not found for ID: {rowId} in any Document (Target Class: {targetName})");
             return default;
+        }
+
+        private static string SanitizeTableName(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return name;
+            return name.Replace("_", "").Replace(" ", "").Replace("-", "");
         }
     }
 }

@@ -18,18 +18,8 @@ namespace Mano.Data
 
         public T GetData<T>() where T : IManoDataRow, new()
         {
-            ValidateInit();
-
             if (string.IsNullOrEmpty(rowId)) return default;
             return ManoData.GetCachedObject<T>(rowId);
-        }
-
-        private void ValidateInit()
-        {
-            if (gameDataDocumentSO != null)
-            {
-                ManoData.Init(gameDataDocumentSO);
-            }
         }
 
         public bool IsValid => !string.IsNullOrEmpty(tableName) && !string.IsNullOrEmpty(rowId);
