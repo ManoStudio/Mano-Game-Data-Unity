@@ -359,8 +359,6 @@ namespace Mano.Data.Editor
                         EditorUtility.SetDirty(targetSO);
                         AssetDatabase.SaveAssets();
 
-                        // --- เพิ่มส่วนการกรองตรงนี้ ---
-                        // ดึงรายชื่อ Sheet ที่ User ติ๊ก 'IsGenCode' ไว้เท่านั้น
                         var sheetsToGen = targetSO.availableSheets
                             .Where(s => s.IsSelected && s.IsGenCode)
                             .Select(s => s.SheetName)
@@ -368,7 +366,6 @@ namespace Mano.Data.Editor
 
                         Debug.Log("[ManoData] Data received. Starting code generation for selected sheets...");
 
-                        // ส่งลิสต์รายชื่อ Sheet ที่อนุญาตให้ Gen ไปที่ Generator
                         ManoDataCodeGenerator.Generate(targetSO, sheetsToGen);
 
                         EditorUtility.DisplayDialog("Mano Sync", "Data Sync and Code Generation successful!", "OK");

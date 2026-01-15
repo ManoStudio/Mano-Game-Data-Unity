@@ -22,7 +22,7 @@ namespace Mano.Data
         public List<SelectedSheet> availableSheets = new List<SelectedSheet>();
         public List<SelectedSheet> generatedSheets = new List<SelectedSheet>();
 
-        [SerializeField]
+        [SerializeField, ManoOnly]
         public ManoDataDocument document = new ManoDataDocument();
 
         public bool HasDataToPreview => document?.tables != null && document.tables.Count > 0;
@@ -120,7 +120,6 @@ namespace Mano.Data
                         lastValues[col] = val;
                     }
 
-                    // แปลง Dictionary เป็น RowData เพื่อให้ Unity เซฟได้
                     table.rows.Add(new RowData
                     {
                         id = currentId,
@@ -130,17 +129,34 @@ namespace Mano.Data
                 }
                 else if (currentRow != null)
                 {
-                    // กรณี Row Merge (ID ซ้ำ)
                     for (int col = 0; col < table.schema.Count; col++)
                     {
+                        var columnSchema = table.schema[col];
+                        string colName = columnSchema.name;
                         string val = col < rowDataJson.Count ? rowDataJson[col].ToString() : "";
-                        if (string.IsNullOrEmpty(val)) val = lastValues[col];
-                        else lastValues[col] = val;
 
-                        string colName = table.schema[col].name;
-                        currentRow[colName] = currentRow[colName].ToString() + "|" + val;
+                        bool isListType = columnSchema.type.ToLower().StartsWith("list_");
+
+                        if (isListType)
+                        {
+                            if (!string.IsNullOrEmpty(val))
+                            {
+                                string currentVal = currentRow[colName].ToString();
+                                currentRow[colName] = string.IsNullOrEmpty(currentVal) ? val : currentVal + "|" + val;
+                                lastValues[col] = val;
+                            }
+                        }
+                        else
+                        {
+                            if (string.IsNullOrEmpty(currentRow[colName].ToString()))
+                            {
+                                if (string.IsNullOrEmpty(val)) val = lastValues[col];
+                                else lastValues[col] = val;
+
+                                currentRow[colName] = val;
+                            }
+                        }
                     }
-                    // อัปเดต JSON string ของ Row ล่าสุด
                     table.rows.Last().jsonValues = JsonConvert.SerializeObject(currentRow);
                 }
             }

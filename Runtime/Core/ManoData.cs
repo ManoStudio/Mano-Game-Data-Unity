@@ -64,18 +64,5 @@ namespace Mano.Data
             if (string.IsNullOrEmpty(name)) return name;
             return name.Replace("_", "").Replace(" ", "").Replace("-", "");
         }
-
-#if UNITY_EDITOR
-        public static void WarmupAllDocs()
-        {
-            var docs = UnityEditor.AssetDatabase.FindAssets("t:ManoDataDocumentSO")
-                .Select(guid => UnityEditor.AssetDatabase.LoadAssetAtPath<ManoDataDocumentSO>(UnityEditor.AssetDatabase.GUIDToAssetPath(guid)));
-
-            foreach (var doc in docs)
-            {
-                doc.EditorWarmup();
-            }
-        }
-#endif
     }
 }
